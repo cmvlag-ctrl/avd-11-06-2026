@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Test AV - Détection Avancée (v2)</title>
+    <style>
+        :root {
+            --primary-color: #4ecdc4;
+            --secondary-color: #555;
+            --error-color: #f55;
+            --success-color: #28a745;
+        }
+
+        body {
+            margin: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+            color: white;
+            touch-action: manipulation;
+        }
+
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.2;
+            z-index: 1;
+            transform: scaleX(-1);
+        }
+
+        #letterDisplay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 100px;
+            font-weight: bold;
+            color: white;
+            opacity: 0;
+            z-index: 10;
+            pointer-events: none;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+            transition: opacity 0.3s ease;
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 320px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            font-size: 13px;
+        }
+
+        .stat {
+            margin: 6px 0;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .stat-label {
+            color: #aaa;
+            font-size: 11px;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .speed-gauge {
+            height: 8px;
+            background: #333;
+            margin: 8px 0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .speed-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #0f0, #ff0, #f00);
+            transition: width 0.1s linear, background 0.2s;
+        }
+
+        button {
+            background: var(--primary-color);
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 8px;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #3db8b8;
+        }
+
+        button.secondary {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        button.secondary:hover {
+            background: #666;
+        }
+
+        #startOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+
+        #calibPanel {
+            display: none;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #444;
+            text-align: center;
+        }
+
+        .calib-bar-container {
+            height: 22px;
+            border: 1px dashed #666;
+            margin: 12px auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 12mm;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .calib-bar {
+            height: 100%;
+            background: var(--success-color);
+            width: 10mm;
+            transform-origin: left center;
+        }
+
+        .flash-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: none;
+            animation: pulse 0.5s;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.8); opacity: 0.7; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.7; }
+        }
+
+        .error-message {
+            color: var(--error-color);
+            font-size: 12px;
+            margin-top: 8px;
+            min-height: 16px;
+        }
+
+        .success-message {
+            color: var(--success-color);
+            font-size: 12px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="startOverlay">
+        <h1 style="margin: 0 0 10px 0;">Test Acuité (Pro)</h1>
+        <p style="margin: 0 0 20px 0; color: #ccc;">Détection de vitesse optimisée pour évaluer votre acuité visuelle.</p>
+        <button id="startBtn" onclick="app.start()">DÉMARRER</button>
+        <div id="errorMsg" class="error-message"></div>
+    </div>
+
+    <div id="flashIndicator" class="flash-indicator"></div>
+
+    <video id="video" playsinline autoplay muted></video>
+    <div id="letterDisplay">A</div>
+
+    <div id="ui" style="display:none;">
+        <div class="stat">
+            <span class="stat-label">État</span>
+            <span id="statusInit">Initialisation...</span>
+        </div>
+
+        <div class="stat">
+            <span class="stat-label">Vitesse</span>
+            <span id="statusSpeed">0 px/ms</span>
+            <div class="speed-gauge"><div class="speed-bar" id="speedBar"></div></div>
+        </div>
+
+        <div class="stat">
+            <span class="stat-label">Distance</span>
+            <span id="statusDist">-- cm</span>
+        </div>
+
+        <div class="stat">
+            <span class="stat-label">Taille lettre</span>
+            <span id="statusSize">-- px</span>
+        </div>
+
+        <div style="margin: 10px 0; border-top: 1px solid #444;"></div>
+
+        <div style="margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="font-size: 11px;">Acuité: <span id="valAcuity">1.0</span></span>
+                <span style="font-size: 11px;">DPI: ~<span id="dpiValue">300</span></span>
+            </div>
+            <input type="range" id="acuity" min="0.1" max="2.0" step="0.1" value="1.0" oninput="app.updateParams()">
+        </div>
+
+        <button class="secondary" onclick="app.toggleCalibration()">
+            📏 Calibrer l'écran
+        </button>
+
+        <div id="calibPanel">
+            <p style="font-size:11px; margin:0 0 8px 0; color:#ddd;">
+                Ajustez la barre rouge à <b>1 cm</b> avec une règle.
+            </p>
+            <div class="calib-bar-container">
+                <div class="calib-bar" id="calibBar"></div>
+            </div>
+            <input type="range" id="calibSlider" min="0.5" max="2.0" step="0.05" value="1.0" oninput="app.updateCalibration()">
+            <button id="saveCalibBtn" onclick="app.saveCalibration()" style="background:var(--success-color); margin-top:8px;">
+                Sauvegarder
+            </button>
+            <div id="calibStatus" class="success-message"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script>
+
+    <script>
+        // =============================================
+        // CLASSE PRINCIPALE (Pattern Singleton)
+        // =============================================
+        class AcuityTester {
+            constructor() {
+                // Éléments DOM
+                this.video = document.getElementById('video');
+                this.letterEl = document.getElementById('letterDisplay');
+                this.ui = document.getElementById('ui');
+                this.overlay = document.getElementById('startOverlay');
+                this.errorMsg = document.getElementById('errorMsg');
+                this.flashIndicator = document.getElementById('flashIndicator');
+
+                // Paramètres
+                this.acuity = 1.0;
+                this.screenDPI = 300;
+                this.calibrationFactor = 1.0;
+                this.lastHeadPos = null;
+                this.lastTime = 0;
+                this.speed = 0;
+                this.smoothedSpeed = 0;
+                this.distance = 50;
+                this.rawDistance = 50;
+                this.state = 'IDLE';
+                this.lastFlashTime = 0;
+                this.model = null;
+                this.animationFrameId = null;
+
+                // Constantes (à ajuster selon votre setup)
+                this.CONSTANTS = {
+                    K_FACTOR: 2800,          // Facteur de conversion pixels → cm
+                    MIN_SPEED_TRIGGER: 150,  // Seuil minimal de vitesse pour déclencher
+                    FLASH_DURATION: 60,      // Durée d'affichage de la lettre (ms)
+                    COOLDOWN_DURATION: 1000, // Temps minimum entre deux lettres (ms)
+                    MIN_DISTANCE: 30,        // Distance minimale (cm)
+                    MAX_DISTANCE: 120,       // Distance maximale (cm)
+                    BASE_DPI: 300,           // DPI de base (ajusté par calibration)
+                    LETTERS: "C D F H L N O P T U V Z".split(" ")
+                };
+
+                // Filtre de Kalman simplifié pour le lissage
+                this.kalmanGain = 0.3; // 0.1-0.5 pour un bon compromis
+            }
+
+            // =========================================
+            // INITIALISATION
+            // =========================================
+            async start() {
+                this.showError("");
+
+                try {
+                    // Configuration de la caméra
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'user',
+                            width: { ideal: 640 },
+                            height: { ideal: 480 }
+                        }
+                    });
+
+                    this.video.srcObject = stream;
+                    this.video.onloadedmetadata = async () => {
+                        this.overlay.style.display = 'none';
+                        this.ui.style.display = 'block';
+                        this.video.play();
+
+                        document.getElementById('statusInit').textContent = "Chargement du modèle IA...";
+                        this.model = await blazeface.load();
+                        document.getElementById('statusInit').textContent = "Prêt !";
+
+                        // Charger la calibration
+                        this.loadCalibration();
+
+                        // Mettre à jour l'affichage DPI
+                        this.updateDPIValue();
+
+                        // Démarrer la boucle principale
+                        this.loop();
+                    };
+                } catch (err) {
+                    this.showError(`Erreur caméra: ${err.message}`);
+                    console.error("Erreur d'accès à la caméra:", err);
+                }
+            }
+
+            // =========================================
+            // BOUCLE PRINCIPALE (Optimisée)
+            // =========================================
+            loop() {
+                // Limiter à ~30fps pour réduire la charge CPU
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                }
+
+                this.animationFrameId = requestAnimationFrame(() => this.processFrame());
+            }
+
+            async processFrame() {
+                if (!this.model) {
+                    this.loop();
+                    return;
+                }
+
+                try {
+                    const predictions = await this.model.estimateFaces(this.video, false);
+
+                    if (predictions.length > 0 && predictions[0].probability > 0.9) {
+                        const face = predictions[0];
+                        const nose = face.landmarks[2]; // Point du nez (le plus stable)
+                        const leftEye = face.landmarks[0];
+                        const rightEye = face.landmarks[1];
+
+                        // 1. CALCUL DE LA DISTANCE (avec lissage Kalman)
+                        const eyeDistancePx = this.calculateEyeDistance(leftEye, rightEye);
+                        if (eyeDistancePx > 5) {
+                            const calculatedDist = this.CONSTANTS.K_FACTOR / eyeDistancePx;
+                            this.rawDistance = calculatedDist;
+
+                            // Lissage exponentiel + Kalman simplifié
+                            this.distance = this.lerp(
+                                this.distance * 0.9,
+                                this.rawDistance,
+                                0.1
+                            );
+                            this.distance = this.clamp(this.distance, this.CONSTANTS.MIN_DISTANCE, this.CONSTANTS.MAX_DISTANCE);
+                        }
+
+                        // 2. CALCUL DE VITESSE (avec lissage avancé)
+                        const now = performance.now();
+                        if (this.lastHeadPos) {
+                            const dt = now - this.lastTime;
+
+                            if (dt > 16) { // ~60fps minimum
+                                const dx = nose[0] - this.lastHeadPos.x;
+                                const dy = nose[1] - this.lastHeadPos.y;
+                                const distPx = Math.sqrt(dx * dx + dy * dy);
+
+                                // Vitesse brute
+                                const rawSpeed = distPx / dt;
+
+                                // Lissage avec filtre de Kalman simplifié
+                                this.smoothedSpeed = rawSpeed * this.kalmanGain + this.smoothedSpeed * (1 - this.kalmanGain);
+                                this.speed = this.smoothedSpeed * 1000; // Conversion pour affichage
+
+                                // Gestion de l'état (déclenchement des lettres)
+                                this.handleState(this.speed, now);
+                            }
+                        }
+
+                        this.lastHeadPos = { x: nose[0], y: nose[1] };
+                        this.lastTime = now;
+                    } else {
+                        // Décroissance de la vitesse si pas de visage détecté
+                        this.smoothedSpeed *= 0.9;
+                        this.speed = this.smoothedSpeed * 1000;
+                    }
+
+                    this.updateStats();
+                    this.loop();
+
+                } catch (err) {
+                    console.error("Erreur dans la boucle principale:", err);
+                    this.showError("Erreur de détection. Réessayez.");
+                    this.loop();
+                }
+            }
+
+            // =========================================
+            // GESTION DE L'ÉTAT (Machine à états)
+            // =========================================
+            handleState(currentSpeed, now) {
+                if (this.state === 'IDLE' && currentSpeed > this.CONSTANTS.MIN_SPEED_TRIGGER) {
+                    if (now - this.lastFlashTime > this.CONSTANTS.COOLDOWN_DURATION) {
+                        this.state = 'FLASH';
+                        this.lastFlashTime = now;
+
+                        // Afficher une lettre aléatoire
+                        const randomLetter = this.CONSTANTS.LETTERS[
+                            Math.floor(Math.random() * this.CONSTANTS.LETTERS.length)
+                        ];
+                        this.letterEl.textContent = randomLetter;
+                        this.letterEl.style.fontSize = `${this.calculateLetterSize()}px`;
+                        this.letterEl.style.opacity = '1';
+
+                        // Indicateurs visuels
+                        this.flashIndicator.style.display = 'block';
+                        setTimeout(() => {
+                            this.flashIndicator.style.display = 'none';
+                        }, 500);
+
+                        // Masquer la lettre après la durée définie
+                        setTimeout(() => {
+                            this.letterEl.style.opacity = '0';
+                            this.state = 'IDLE';
+                        }, this.CONSTANTS.FLASH_DURATION);
+                    }
+                }
+            }
+
+            // =========================================
+            // FONCTIONS DE CALCUL
+            // =========================================
+            calculateEyeDistance(leftEye, rightEye) {
+                return Math.sqrt(
+                    Math.pow(rightEye[0] - leftEye[0], 2) +
+                    Math.pow(rightEye[1] - leftEye[1], 2)
+                );
+            }
+
+            calculateLetterSize() {
+                const distCm = this.distance;
+                const acuityDecimal = this.acuity;
+                const heightCm = (distCm * 0.0145) / acuityDecimal; // 0.0145 = taille moyenne d'un œil en cm
+                const heightPx = (heightCm / 2.54) * this.screenDPI * this.calibrationFactor;
+                return Math.max(20, Math.round(heightPx));
+            }
+
+            // =========================================
+            // FONCTIONS DE LISSE (Optimisées)
+            // =========================================
+            lerp(start, end, alpha) {
+                return start * (1 - alpha) + end * alpha;
+            }
+
+            clamp(value, min, max) {
+                return Math.min(Math.max(value, min), max);
+            }
+
+            // =========================================
+            // GESTION DE L'INTERFACE
+            // =========================================
+            updateStats() {
+                // Vitesse
+                document.getElementById('statusSpeed').textContent = `${Math.round(this.speed)}`;
+
+                // Distance
+                document.getElementById('statusDist').textContent = `~${Math.round(this.distance)} cm`;
+
+                // Taille de la lettre
+                const size = this.calculateLetterSize();
+                document.getElementById('statusSize').textContent = `${size} px`;
+
+                // Jauge de vitesse
+                const speedPct = Math.min(100, (this.speed / 250) * 100);
+                const speedBar = document.getElementById('speedBar');
+                speedBar.style.width = `${speedPct}%`;
+
+                // Couleur de la jauge
+                if (this.speed > this.CONSTANTS.MIN_SPEED_TRIGGER) {
+                    speedBar.style.background = '#f00';
+                } else {
+                    speedBar.style.background = 'linear-gradient(90deg, #0f0, #ff0, #f00)';
+                }
+            }
+
+            updateParams() {
+                this.acuity = parseFloat(document.getElementById('acuity').value);
+                document.getElementById('valAcuity').textContent = this.acuity.toFixed(1);
+            }
+
+            updateDPIValue() {
+                document.getElementById('dpiValue').textContent = Math.round(this.screenDPI * this.calibrationFactor);
+            }
+
+            // =========================================
+            // GESTION DE LA CALIBRATION
+            // =========================================
+            toggleCalibration() {
+                const panel = document.getElementById('calibPanel');
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                document.getElementById('calibStatus').textContent = "";
+            }
+
+            updateCalibration() {
+                this.calibrationFactor = parseFloat(document.getElementById('calibSlider').value);
+                document.getElementById('calibBar').style.transform = `scaleX(${this.calibrationFactor})`;
+            }
+
+            saveCalibration() {
+                localStorage.setItem('avd_blazeface_calib_v3', this.calibrationFactor);
+                document.getElementById('calibStatus').textContent = "Calibration sauvegardée !";
+                this.updateDPIValue();
+                setTimeout(() => {
+                    document.getElementById('calibStatus').textContent = "";
+                }, 2000);
+            }
+
+            loadCalibration() {
+                const saved = localStorage.getItem('avd_blazeface_calib_v3');
+                if (saved) {
+                    this.calibrationFactor = parseFloat(saved);
+                    document.getElementById('calibSlider').value = this.calibrationFactor;
+                    this.updateCalibration();
+                }
+            }
+
+            // =========================================
+            // GESTION DES ERREURS
+            // =========================================
+            showError(message) {
+                this.errorMsg.textContent = message;
+                if (message) {
+                    console.error("Erreur:", message);
+                }
+            }
+        }
+
+        // =============================================
+        // INSTANCIATION ET EXPOSITION GLOBALE
+        // =============================================
+        const app = new AcuityTester();
+
+        // Exposer les fonctions pour l'UI
+        window.app = app;
+    </script>
+</body>
+</html>
