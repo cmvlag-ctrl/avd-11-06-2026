@@ -3,369 +3,390 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Test AV - Stable & Calibré</title>
+    <title>Test AV - Optique Correcte</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; color: white; touch-action: none; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; color: white; }
         video {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover; opacity: 0.3; z-index: 1; transform: scaleX(-1);
+            object-fit: cover; opacity: 0.2; z-index: 1; transform: scaleX(-1);
         }
         #letterDisplay {
             position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            font-family: 'Arial', sans-serif; font-weight: bold; color: white;
+            font-size: 100px; font-weight: bold; color: white;
             opacity: 0; z-index: 10; pointer-events: none;
-            text-shadow: 0 0 20px rgba(0,0,0,0.9);
-            transition: none; /* Important pour le flash de 60ms */
+            text-shadow: 0 0 10px black;
+            transition: opacity 0.05s; 
         }
         #ui {
             position: absolute; top: 10px; left: 10px; z-index: 20;
-            background: rgba(0,0,0,0.85); padding: 15px; border-radius: 10px;
-            max-width: 340px; width: 90%; border: 1px solid #333;
+            background: rgba(0,0,0,0.9); padding: 12px; border-radius: 10px;
+            max-width: 320px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; }
-        .stat-val { font-weight: bold; color: #0f0; font-family: monospace; }
-        .stat-label { color: #aaa; }
-        
-        .speed-bar-bg { height: 6px; background: #333; border-radius: 3px; overflow: hidden; margin: 5px 0; }
-        .speed-bar-fill { height: 100%; width: 0%; background: #00b894; transition: width 0.1s; }
+        .stat { font-size: 12px; margin: 3px 0; color: #0f0; font-family: 'Courier New', monospace; }
+        .stat-title { color: #888; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; margin-top: 5px; display: block; }
 
-        input[type=range] { width: 100%; margin: 8px 0; }
-        
-        button {
-            width: 100%; padding: 12px; margin-top: 8px; border: none; border-radius: 5px;
-            font-weight: bold; cursor: pointer; font-size: 14px;
+        .speed-gauge {
+            height: 6px; background: #333; margin-top: 5px; border-radius: 3px; overflow: hidden;
         }
-        .btn-primary { background: #0984e3; color: white; }
-        .btn-calib { background: #636e72; color: white; font-size: 12px; padding: 8px; }
-        .btn-test { background: #fdcb6e; color: #2d3436; }
-        
+        .speed-bar {
+            height: 100%; width: 0%; background: linear-gradient(90deg, #0f0, #ff0, #f00);
+            transition: width 0.1s linear;
+        }
+
+        button {
+            background: #4ecdc4; border: none; padding: 12px; border-radius: 6px;
+            cursor: pointer; font-weight: bold; width: 100%; margin-top: 8px;
+            font-size: 14px;
+        }
+        button.secondary { background: #444; color: white; font-size: 12px; padding: 8px; }
+        button.calib-btn { background: #28a745; color: white; }
+
         #startOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #111; z-index: 100; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; text-align: center;
+            background: #000; z-index: 100; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center; padding: 20px;
         }
-        .hidden { display: none !important; }
-        
-        #debugStatus {
-            position: fixed; top: 10px; right: 10px; 
-            background: red; color: white; padding: 5px 10px; 
-            border-radius: 4px; font-size: 10px; font-weight: bold;
+        #calibPanel {
+            display: none; margin-top: 10px; padding-top: 10px;
+            border-top: 1px solid #444; text-align: center;
         }
+
+        input[type=range] { width: 100%; margin: 10px 0; }
+        .dist-info { font-size: 12px; color: #ccc; margin-bottom: 10px; line-height: 1.4; background: #222; padding: 5px; border-radius: 4px; }
     </style>
 </head>
 <body>
 
-    <div id="debugStatus" class="hidden">PAS DE VISAGE</div>
-
     <div id="startOverlay">
-        <h2>Entraînement AVD</h2>
-        <p style="color:#aaa; font-size:14px;">Détection de mouvement & Flash 60ms</p>
-        <button class="btn-primary" style="width:200px" onclick="initApp()">DÉMARRER</button>
+        <h1>Test Acuité (Optique)</h1>
+        <p>Taille réelle 5 min d'arc</p>
+        <button onclick="startApp()">DÉMARRER</button>
     </div>
 
     <video id="video" playsinline autoplay muted></video>
-    <div id="letterDisplay">E</div>
+    <div id="letterDisplay">A</div>
 
-    <div id="ui" class="hidden">
-        <div class="stat-row">
-            <span class="stat-label">Vitesse Tête:</span>
-            <span id="dispSpeed" class="stat-val">0</span>
+    <div id="ui" style="display:none;">
+        <div class="stat" id="statusInit">Initialisation...</div>
+
+        <span class="stat-title">PERFORMANCE</span>
+        <div class="stat" id="statusSpeed">Vitesse: 0</div>
+        <div class="speed-gauge"><div class="speed-bar" id="speedBar"></div></div>
+
+        <span class="stat-title">OPTIQUE</span>
+        <div class="stat">Distance: <span id="valDist" style="color:#4ecdc4; font-weight:bold;">--</span> cm</div>
+        <div class="stat">Taille Réelle: <span id="valSizeMm">--</span> mm</div>
+
+        <hr style="border-color:#333; margin: 8px 0;">
+
+        <div style="margin-bottom: 8px;">
+            <span style="font-size:11px; color:#aaa;">Acuité Ciblée:</span> 
+            <span id="valAcuity" style="color:#fff; font-weight:bold;">1.0</span>
+            <input type="range" id="acuity" min="0.1" max="2.0" step="0.1" value="1.0" oninput="updateParams()">
         </div>
-        <div class="speed-bar-bg"><div id="speedBar" class="speed-bar-fill"></div></div>
 
-        <div class="stat-row">
-            <span class="stat-label">Acuité (Dixième):</span>
-            <span id="dispAcuity" class="stat-val">1.0</span>
-        </div>
-        <input type="range" id="sliderAcuity" min="0.1" max="2.0" step="0.1" value="1.0">
+        <button class="secondary" onclick="toggleCalib()">⚙️ Réglages & Calibration</button>
 
-        <div class="stat-row">
-            <span class="stat-label">Distance Est.:</span>
-            <span id="dispDist" class="stat-val">-- cm</span>
-        </div>
+        <div id="calibPanel">
+            <div class="dist-info">
+                <b>Calibration Distance :</b><br>
+                1. Tenez le téléphone à <b>bout de bras</b>.<br>
+                2. Cliquez sur "CALIBRER".
+            </div>
+            <button class="calib-btn" id="btnCalibAction" onclick="triggerCalibration()">📏 CALIBRER MAINTENANT</button>
 
-        <hr style="border-color:#333; margin: 10px 0;">
+            <hr style="border-color:#444; margin: 15px 0;">
 
-        <button class="btn-test" onclick="startStaticTest()">1. TEST SEUIL (Statique)</button>
-        <button class="btn-primary" onclick="startDynamicMode()">2. ENTRAINEMENT (Mouvement)</button>
-        
-        <button class="btn-calib" onclick="toggleCalibration()">⚙️ Calibration & Réglages</button>
+            <div style="text-align:left;">
+                <span class="stat-title">DISTANCE MANUELLE</span>
+                <input type="range" id="distSlider" min="30" max="100" step="1" value="60" oninput="updateDistSetting()">
+                <div style="text-align:right; font-size:12px; color:#4ecdc4;">Consigne: <span id="distValDisplay">60</span> cm</div>
+            </div>
 
-        <div id="calibPanel" class="hidden" style="margin-top:10px; background:#222; padding:10px; border-radius:5px;">
-            <p style="font-size:11px; color:#ccc;">1. Tenez le téléphone à bras tendu.<br>2. Cliquez ci-dessous.</p>
-            <button style="background:#00b894; padding:5px;" onclick="runCalibration()">📏 CALIBRER DISTANCE</button>
-            <p style="font-size:11px; color:#ccc; margin-top:10px;">Correction Écran :</p>
-            <input type="range" id="sliderDpi" min="0.5" max="3.0" step="0.1" value="1.5">
-            <div style="text-align:right; font-size:10px; color:#fdcb6e;">Facteur: <span id="valDpi">1.5</span></div>
+             <hr style="border-color:#444; margin: 15px 0;">
+
+            <div style="text-align:left;">
+                <span class="stat-title">CORRECTION ÉCRAN (DPI)</span>
+                <div style="font-size:11px; color:#aaa;">Si les lettres sont trop petites/grandes :</div>
+                <input type="range" id="dpiSlider" min="0.5" max="3.0" step="0.1" value="1.5" oninput="updateDpiSetting()">
+                <div style="text-align:right; font-size:12px; color:#ff0;">Facteur: <span id="dpiValDisplay">1.5</span>x</div>
+            </div>
+
+            <button onclick="saveCalib()" style="background:#555; margin-top:15px;">Fermer</button>
         </div>
     </div>
 
-    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script>
 
     <script>
-        // --- VARIABLES GLOBALES ---
-        let video, canvas, ctx, letterEl, debugStatus;
         let model = null;
-        let isRunning = false;
-        
-        // Paramètres Utilisateur
-        let acuity = 1.0;
-        let dpiFactor = 1.5;
-        let userDistance = 60; // cm (défaut)
-        
-        // Calibration
-        let refFaceWidth = 0; // Largeur visage参考 à la distance de calibration
-        const CALIB_DIST_REF = 60; 
+        let video = document.getElementById('video');
+        let letterEl = document.getElementById('letterDisplay');
+        let ui = document.getElementById('ui');
+        let overlay = document.getElementById('startOverlay');
 
-        // Suivi Mouvement
-        let lastNose = { x: 0, y: 0 };
+        // Paramètres
+        let acuity = 1.0; 
+        let screenDPI_Base = 96; // Valeur standard CSS
+        let dpiFactor = 1.5;     // Facteur de correction manuel (défaut 1.5 pour mobile)
+
+        // Variables de Distance
+        let currentDist = 50;       
+        let manualDist = 60;        
+        let isCalibrating = false;  
+
+        // Références personnelles
+        let refFaceWidthPx = 0;
+        let refIpdPx = 0;
+        const REF_DIST_CM = 60;     
+
+        // Tracking
+        let lastHeadPos = null;
         let lastTime = 0;
-        let currentSpeed = 0;
-        let mode = 'IDLE'; // IDLE, STATIC, DYNAMIC
-        let staticInterval = null;
+        let speed = 0;
+        let smoothedSpeed = 0;
+        let state = 'IDLE'; 
         let lastFlashTime = 0;
+        const letters = "C D F H L N O P T U V Z".split(" ");
 
-        // Initialisation
-        window.addEventListener('load', () => {
-            video = document.getElementById('video');
-            letterEl = document.getElementById('letterDisplay');
-            debugStatus = document.getElementById('debugStatus');
-            
-            // Listeners Sliders
-            document.getElementById('sliderAcuity').addEventListener('input', (e) => {
-                acuity = parseFloat(e.target.value);
-                document.getElementById('dispAcuity').innerText = acuity.toFixed(1);
-            });
-            document.getElementById('sliderDpi').addEventListener('input', (e) => {
-                dpiFactor = parseFloat(e.target.value);
-                document.getElementById('valDpi').innerText = dpiFactor.toFixed(1);
-            });
-        });
+        // --- GESTION CALIBRATION ---
 
-        async function initApp() {
-            document.getElementById('startOverlay').classList.add('hidden');
-            document.getElementById('ui').classList.remove('hidden');
-            
+        function toggleCalib() {
+            const panel = document.getElementById('calibPanel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function triggerCalibration() {
+            isCalibrating = true;
+            const btn = document.getElementById('btnCalibAction');
+            btn.innerText = "✅ Enregistré !";
+            btn.style.background = "#555";
+            manualDist = REF_DIST_CM;
+            document.getElementById('distSlider').value = manualDist;
+            updateDistSetting();
+        }
+
+        function updateDistSetting() {
+            manualDist = parseInt(document.getElementById('distSlider').value);
+            document.getElementById('distValDisplay').innerText = manualDist;
+        }
+
+        function updateDpiSetting() {
+            dpiFactor = parseFloat(document.getElementById('dpiSlider').value);
+            document.getElementById('dpiValDisplay').innerText = dpiFactor.toFixed(1);
+        }
+
+        function saveCalib() {
+            localStorage.setItem('avd_ref_width', refFaceWidthPx);
+            localStorage.setItem('avd_ref_ipd', refIpdPx);
+            localStorage.setItem('avd_manual_dist', manualDist);
+            localStorage.setItem('avd_dpi_factor', dpiFactor);
+            document.getElementById('calibPanel').style.display = 'none';
+        }
+
+        function loadCalib() {
+            const w = localStorage.getItem('avd_ref_width');
+            const i = localStorage.getItem('avd_ref_ipd');
+            const d = localStorage.getItem('avd_manual_dist');
+            const f = localStorage.getItem('avd_dpi_factor');
+
+            if (w && i && parseFloat(w) > 0) {
+                refFaceWidthPx = parseFloat(w);
+                refIpdPx = parseFloat(i);
+            }
+            if (d) {
+                manualDist = parseInt(d);
+                document.getElementById('distSlider').value = manualDist;
+                updateDistSetting();
+            }
+            if (f) {
+                dpiFactor = parseFloat(f);
+                document.getElementById('dpiSlider').value = dpiFactor;
+                updateDpiSetting();
+            }
+        }
+
+        // --- DÉMARRAGE ---
+        async function startApp() {
+            loadCalib();
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
                 });
                 video.srcObject = stream;
-                await new Promise(r => video.onloadedmetadata = r);
-                video.play();
-                
-                debugStatus.innerText = "CHARGEMENT IA...";
-                debugStatus.classList.remove('hidden');
-                
-                model = await blazeface.load();
-                
-                debugStatus.classList.add('hidden');
-                isRunning = true;
-                detectLoop();
-                
+                video.onloadedmetadata = async () => {
+                    overlay.style.display = 'none';
+                    ui.style.display = 'block';
+                    video.play();
+                    document.getElementById('statusInit').innerText = "Chargement IA...";
+                    model = await blazeface.load();
+                    document.getElementById('statusInit').innerText = "Système Prêt";
+                    loop();
+                };
             } catch (err) {
-                alert("Erreur Caméra : " + err);
+                alert("Erreur Caméra : " + err.message);
             }
         }
 
-        // --- BOUCLE DE DETECTION (Cœur du système) ---
-        async function detectLoop() {
-            if (!isRunning || !model) {
-                requestAnimationFrame(detectLoop);
+        // --- BOUCLE PRINCIPALE ---
+        async function loop() {
+            if (!model) {
+                requestAnimationFrame(loop);
                 return;
             }
 
             try {
                 const predictions = await model.estimateFaces(video, false);
-                
+
                 if (predictions.length > 0) {
                     const face = predictions[0];
-                    const nose = face.landmarks[2]; // Nez
-                    const box = face.boundingBox;
+                    const landmarks = face.landmarks;
 
-                    // 1. CALCUL DISTANCE
-                    // On utilise la largeur du visage pour estimer la distance relative
-                    // Si on a une calibration, on l'utilise. Sinon, on reste sur une estimation générique.
-                    const faceW = box.width;
-                    // Si calibrated : Distance = (RefWidth / CurrentWidth) * RefDist
-                    if (refFaceWidth > 0) {
-                        userDistance = (refFaceWidth / faceW) * CALIB_DIST_REF;
+                    const leftEye = landmarks[0];
+                    const rightEye = landmarks[1];
+                    const leftEar = landmarks[4];
+                    const rightEar = landmarks[5];
+                    const nose = landmarks[2];
+
+                    // 1. Calculs Pixels
+                    const ipdPx = Math.hypot(rightEye[0] - leftEye[0], rightEye[1] - leftEye[1]);
+
+                    let faceWidthPx = 0;
+                    if(leftEar && rightEar) {
+                        faceWidthPx = Math.hypot(rightEar[0] - leftEar[0], rightEar[1] - leftEar[1]);
                     } else {
-                        // Estimation "pifomètre" générique (visage ~16cm de large)
-                        // Largeur image supposée 640px -> focale approx
-                        userDistance = 4000 / faceW; // Formule empirique simplifiée
+                        faceWidthPx = face.boundingBox.width;
                     }
-                    
-                    // 2. CALCUL VITESSE
+
+                    // 2. LOGIQUE DE CALIBRATION
+                    if (isCalibrating) {
+                        refFaceWidthPx = faceWidthPx;
+                        refIpdPx = ipdPx;
+                        isCalibrating = false;
+                    }
+
+                    // 3. Calcul Distance Fusionnée
+                    if (ipdPx > 5 && faceWidthPx > 10) {
+                        currentDist = calculateFusedDistance(faceWidthPx, ipdPx);
+                    } else {
+                        currentDist = 50; 
+                    }
+
+                    // 4. Calcul Vitesse
                     const now = performance.now();
-                    if (lastTime > 0) {
+                    if (lastHeadPos) {
                         const dt = now - lastTime;
-                        const distPx = Math.hypot(nose[0] - lastNose.x, nose[1] - lastNose.y);
-                        // Vitesse pixels/seconde
-                        if (dt > 16) { // Eviter division par zéro
-                            currentSpeed = (distPx / dt) * 1000;
+                        if (dt > 16) {
+                            const dx = nose[0] - lastHeadPos.x;
+                            const dy = nose[1] - lastHeadPos.y;
+                            const distPx = Math.hypot(dx, dy);
+                            let rawSpeed = distPx / dt; 
+                            smoothedSpeed = (smoothedSpeed * 0.7) + (rawSpeed * 0.3);
+                            speed = smoothedSpeed * 1000; 
                         }
                     }
-                    lastNose = { x: nose[0], y: nose[1] };
+                    lastHeadPos = { x: nose[0], y: nose[1] };
                     lastTime = now;
 
-                    debugStatus.classList.add('hidden');
+                    handleState(speed, now);
+                    updateStats();
 
                 } else {
-                    // Pas de visage détecté
-                    currentSpeed = 0;
-                    debugStatus.classList.remove('hidden');
+                    smoothedSpeed *= 0.9;
+                    speed = smoothedSpeed * 1000;
+                    updateStats();
                 }
-
-                updateUI();
-                handleLogic();
-
             } catch (e) {
-                console.warn("Glitch IA", e);
+                console.error("Erreur loop:", e);
             }
 
-            requestAnimationFrame(detectLoop);
+            requestAnimationFrame(loop);
         }
 
-        // --- LOGIQUE DES MODES ---
-        function handleLogic() {
-            const now = performance.now();
-
-            // MODE DYNAMIQUE (Entraînement)
-            if (mode === 'DYNAMIC') {
-                // Seuil de déclenchement : 150 (unité arbitraire pixels/sec lissés)
-                // On demande aussi un cooldown de 800ms entre deux flashes
-                if (currentSpeed > 150 && (now - lastFlashTime > 800)) {
-                    triggerFlash();
-                    lastFlashTime = now;
-                }
-            }
-            
-            // MODE STATIQUE : Géré par setInterval (voir startStaticTest)
-        }
-
-        function triggerFlash() {
-            // Calcul taille lettre
-            // Taille (mm) = Distance (mm) * tan(5 minutes) / Acuité
-            // tan(5') ≈ 0.001454
-            const distMm = userDistance * 10;
-            const letterHeightMm = (distMm * 0.001454) / acuity;
-            
-            // Conversion mm -> px
-            // 1 pouce = 25.4mm. DPI écran ≈ 96 * facteur
-            const px = (letterHeightMm / 25.4) * (96 * dpiFactor);
-            
-            letterEl.style.fontSize = Math.max(20, px) + 'px';
-            letterEl.innerText = getRandomLetter();
-            
-            // Flash ON
-            letterEl.style.opacity = 1;
-            
-            // Flash OFF après 60ms
-            setTimeout(() => {
-                letterEl.style.opacity = 0;
-            }, 60);
-        }
-
-        // --- GESTION UI ---
-        function updateUI() {
-            document.getElementById('dispSpeed').innerText = Math.round(currentSpeed);
-            document.getElementById('dispDist').innerText = Math.round(userDistance) + " cm";
-            
-            // Barre de vitesse
-            const pct = Math.min(100, currentSpeed / 3); // Echelle arbitraire pour visuel
-            const bar = document.getElementById('speedBar');
-            bar.style.width = pct + '%';
-            if (currentSpeed > 150) bar.style.background = '#d63031'; // Rouge
-            else bar.style.background = '#00b894'; // Vert
-        }
-
-        // --- MODES UTILISATEUR ---
-        function startStaticTest() {
-            mode = 'STATIC';
-            alert("TEST SEUIL : Restez IMMOBILE. Les lettres vont défiler toutes les 1.5s. Dites STOP quand c'est illisible.");
-            
-            if (staticInterval) clearInterval(staticInterval);
-            
-            let currentTestAcuity = 0.2;
-            document.getElementById('sliderAcuity').value = currentTestAcuity;
-            acuity = currentTestAcuity;
-            updateUI(); // Force update text
-
-            staticInterval = setInterval(() => {
-                triggerFlash(); // Utilise la même fonction d'affichage
-                
-                // Incrmente difficulté
-                currentTestAcuity += 0.2;
-                document.getElementById('sliderAcuity').value = currentTestAcuity;
-                acuity = currentTestAcuity;
-                document.getElementById('dispAcuity').innerText = acuity.toFixed(1);
-                
-                if (currentTestAcuity > 2.5) {
-                    clearInterval(staticInterval);
-                    alert("Fin du test.");
-                    mode = 'IDLE';
-                }
-            }, 1500);
-        }
-
-        function startDynamicMode() {
-            if (staticInterval) clearInterval(staticInterval);
-            mode = 'DYNAMIC';
-            alert("ENTRAINEMENT : Bougez la tête VIVEMENT de gauche à droite. La lettre n'apparaît que si la barre devient ROUGE.");
-        }
-
-        // --- CALIBRATION ---
-        function toggleCalibration() {
-            const p = document.getElementById('calibPanel');
-            p.classList.toggle('hidden');
-        }
-
-        function runCalibration() {
-            if (currentSpeed > 20) {
-                alert("Ne bougez pas pendant la calibration !");
-                return;
-            }
-            // On capture la largeur actuelle du visage comme référence pour 60cm (ou la distance estimée actuelle)
-            // Pour simplifier : on force la distance actuelle à 60cm et on enregistre la largeur visage
-            const predictions = model.estimateFaces(video, false); // Synchrone rapide pour capturer
-            if(predictions.length > 0 && predictions[0].boundingBox.width > 0){
-                 // On ne peut pas facilement attendre une promesse ici dans une fonction synchrone
-                 // On va juste dire à l'utilisateur de se mettre à 60cm
-                 // Et on enregistre la largeur actuelle
-                 // Note: le loop va écraser userDistance, donc on set refFaceWidth
-                 // Le problème c'est que estimateFaces est asynchrone.
-                 
-                 // On triche : on prend la dernière valeur connue de width via une variable globale si on l'avait
-                 // Mais on ne l'a pas stockée globalement simplement.
-                 
-                 // Solution simple : on demande à l'utilisateur de valider quand il est prêt
-                 alert("Placez-vous à environ 60cm de l'écran, visage bien centré, et cliquez sur OK.");
-                 
-                 // Au prochain tour de boucle, la largeur sera capturée
-                 // On met un petit timeout pour laisser l'utilisateur cliquer
-                 setTimeout(() => {
-                     // On ne peut pas récupérer la largeur facilement ici sans async/await imbriqué
-                     // On va supposer que la boucle tourne et met à jour userDistance.
-                     // Si l'utilisateur est à 60cm réel, et que userDistance affiche 40cm, alors facteur = 60/40.
-                     // C'est trop complexe pour ce script simple.
-                     
-                     // METHODE ROBUSTE :
-                     // On enregistre juste le facteur DPI pour l'instant.
-                     // La calibration distance est "automatique" via l'estimation générique.
-                     alert("Calibration distance activée (Estimation générique affinée par DPI).");
-                 }, 100);
+        function calculateFusedDistance(currFacePx, currIpdPx) {
+            if (refFaceWidthPx > 10 && refIpdPx > 5) {
+                const dWidth = (currFacePx > 0) ? (refFaceWidthPx / currFacePx) * manualDist : manualDist;
+                const dIpd = (currIpdPx > 0) ? (refIpdPx / currIpdPx) * manualDist : manualDist;
+                return (dWidth * 0.4) + (dIpd * 0.6);
             } else {
-                alert("Visage non détecté. Mettez-vous face à la caméra.");
+                // Estimation générique
+                const kIpd = 3800; 
+                const kFace = 9000;
+                const dIpd = kIpd / currIpdPx;
+                const dWidth = kFace / currFacePx;
+                return (dIpd + dWidth) / 2;
             }
         }
 
-        function getRandomLetter() {
-            const chars = ['C','D','E','F','L','O','P','T','Z'];
-            return chars[Math.floor(Math.random() * chars.length)];
+        function handleState(currentSpeed, now) {
+            const minSpeedTrigger = 150; 
+            const flashDuration = 60;    
+            const cooldownDuration = 800; 
+
+            if (state === 'IDLE') {
+                if (currentSpeed > minSpeedTrigger && (now - lastFlashTime > cooldownDuration)) {
+                    state = 'FLASH';
+                    lastFlashTime = now;
+
+                    const randomLetter = letters[Math.floor(Math.random() * letters.length)];
+                    letterEl.innerText = randomLetter;
+
+                    let size = calculateSize(currentDist, acuity);
+                    letterEl.style.fontSize = size + 'px';
+                    letterEl.style.opacity = '1';
+
+                    setTimeout(() => {
+                        letterEl.style.opacity = '0';
+                        state = 'IDLE';
+                    }, flashDuration);
+                }
+            }
+        }
+
+        function calculateSize(distCm, acuityDecimal) {
+            if(distCm < 10) distCm = 10;
+
+            // 1. Calcul de la taille physique réelle en MM
+            // Angle = 5 minutes d'arc = 5/60 degrés
+            // tan(angle) = Taille / Distance  => Taille = Distance * tan(angle)
+            let angleRad = (5 / 60) * (Math.PI / 180);
+            let heightMm = (distCm * 10) * Math.tan(angleRad) / acuityDecimal;
+
+            // 2. Conversion en Pixels
+            // 1 pouce = 25.4 mm
+            // DPI effectif = DPI Standard * Facteur Correction
+            let effectiveDPI = screenDPI_Base * dpiFactor;
+            let heightInches = heightMm / 25.4;
+            let heightPx = heightInches * effectiveDPI;
+
+            return Math.max(20, Math.round(heightPx));
+        }
+
+        function updateParams() {
+            acuity = parseFloat(document.getElementById('acuity').value);
+            document.getElementById('valAcuity').innerText = acuity.toFixed(1);
+        }
+
+        function updateStats() {
+            document.getElementById('statusSpeed').innerText = `Vitesse: ${Math.round(speed)}`;
+            document.getElementById('valDist').innerText = Math.round(currentDist);
+
+            // Calcul pour affichage info (taille réelle en mm)
+            let angleRad = (5 / 60) * (Math.PI / 180);
+            let realSizeMm = (currentDist * 10) * Math.tan(angleRad) / acuity;
+            document.getElementById('valSizeMm').innerText = realSizeMm.toFixed(1);
+
+            let currentSize = calculateSize(currentDist, acuity);
+            //document.getElementById('valSize').innerText = currentSize;
+
+            // Jauge
+            let pct = Math.min(100, (speed / 250) * 100);
+            document.getElementById('speedBar').style.width = `${pct}%`;
+            const bar = document.getElementById('speedBar');
+            if(speed > 150) bar.style.background = '#f00';
+            else bar.style.background = 'linear-gradient(90deg, #0f0, #ff0, #f00)';
         }
     </script>
 </body>
