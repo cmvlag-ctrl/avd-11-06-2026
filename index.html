@@ -1,122 +1,339 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg width="297mm" height="210mm" viewBox="0 0 297 210" xmlns="http://www.w3.org/2000/svg">
-  <!-- Fond blanc -->
-  <rect width="100%" height="100%" fill="white"/>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Entrainement AV - Flash 60ms</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; color: white; }
+        video {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; opacity: 0.2; z-index: 1; transform: scaleX(-1);
+        }
+        #letterDisplay {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 100px; font-weight: bold; color: white;
+            opacity: 0; z-index: 10; pointer-events: none;
+            text-shadow: 0 0 10px black;
+            /* Pas de transition CSS pour garantir un cut net à 60ms */
+        }
+        #ui {
+            position: absolute; top: 10px; left: 10px; z-index: 20;
+            background: rgba(0,0,0,0.95); padding: 15px; border-radius: 10px;
+            max-width: 340px; box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            border: 1px solid #333;
+        }
+        .stat { font-size: 13px; margin: 5px 0; font-family: 'Courier New', monospace; display: flex; justify-content: space-between; }
+        .stat-label { color: #888; }
+        .stat-val { color: #fff; font-weight: bold; }
+        .highlight { color: #4ecdc4 !important; font-size: 1.1em; }
+        
+        .speed-gauge {
+            height: 6px; background: #333; margin-top: 8px; border-radius: 3px; overflow: hidden;
+        }
+        .speed-bar {
+            height: 100%; width: 0%; background: linear-gradient(90deg, #0f0, #ff0, #f00);
+            transition: width 0.1s linear;
+        }
 
-  <!-- Règle principale -->
-  <g transform="translate(10, 100)">
-    <!-- Ligne principale -->
-    <line x1="0" y1="0" x2="277" y2="0" stroke="black" stroke-width="1"/>
+        button {
+            background: #4ecdc4; border: none; padding: 12px; border-radius: 6px;
+            cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px;
+            font-size: 14px; color: #000; transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.98); }
+        button.secondary { background: #333; color: #ccc; border: 1px solid #555; }
+        button.action-btn { background: #ff9f43; color: #000; font-size: 16px; padding: 15px; margin-top: 15px;}
+        
+        #startOverlay, #thresholdOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 100; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center; padding: 20px;
+        }
+        #thresholdOverlay { display: none; background: rgba(0,0,0,0.95); }
+        
+        #calibPanel {
+            display: none; margin-top: 10px; padding-top: 10px;
+            border-top: 1px solid #444;
+        }
+        
+        input[type=range] { width: 100%; margin: 8px 0; }
+        .calib-note { font-size: 11px; color: #aaa; font-style: italic; margin-bottom: 10px; display: block; }
+        
+        .mode-badge {
+            display: inline-block; padding: 4px 8px; border-radius: 4px;
+            background: #2d3436; color: #dfe6e9; font-size: 11px; margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
 
-    <!-- Graduations principales (1 cm) -->
-    <g font-size="8" text-anchor="middle">
-      <!-- 0 cm -->
-      <line x1="0" y1="0" x2="0" y2="-5" stroke="black" stroke-width="1"/>
-      <text x="0" y="-10">0</text>
+    <!-- ECRAN D'ACCUEIL -->
+    <div id="startOverlay">
+        <h1>Entrainement AV</h1>
+        <p style="color:#aaa; font-size:14px; margin-bottom:30px;">Flash 60ms & Dynamique</p>
+        <button onclick="startApp()">ACTIVER LA CAMÉRA</button>
+    </div>
 
-      <!-- 1 cm -->
-      <line x1="10" y1="0" x2="10" y2="-8" stroke="black" stroke-width="1"/>
-      <text x="10" y="-10">1</text>
+    <!-- ECRAN DE TEST DE SEUIL -->
+    <div id="thresholdOverlay">
+        <h2 style="color:#ff9f43;">TEST DE SEUIL</h2>
+        <p style="max-width:300px; line-height:1.5; font-size: 14px;">
+            1. Tenez le téléphone à <b>bout de bras</b>.<br>
+            2. Restez <b>IMMOBILE</b>.<br>
+            3. Fixez le centre.<br>
+            <br>
+            <span style="color:#ff9f43">Cliquez ci-dessous quand la lettre devient illisible.</span>
+        </p>
+        <button class="action-btn" onclick="stopThresholdTest()">🛑 JE NE VOIS PLUS</button>
+    </div>
 
-      <!-- 2 cm -->
-      <line x1="20" y1="0" x2="20" y2="-8" stroke="black" stroke-width="1"/>
-      <text x="20" y="-10">2</text>
+    <video id="video" playsinline autoplay muted></video>
+    <div id="letterDisplay">E</div>
 
-      <!-- 3 cm -->
-      <line x1="30" y1="0" x2="30" y2="-8" stroke="black" stroke-width="1"/>
-      <text x="30" y="-10">3</text>
+    <!-- INTERFACE PRINCIPALE -->
+    <div id="ui" style="display:none;">
+        <div class="mode-badge" id="modeDisplay">MODE: CALIBRATION</div>
+        
+        <div class="stat">
+            <span class="stat-label">Vitesse Tête:</span>
+            <span class="stat-val" id="valSpeed">0</span>
+        </div>
+        <div class="speed-gauge"><div class="speed-bar" id="speedBar"></div></div>
+        
+        <div style="margin-top: 15px; border-top: 1px solid #333; padding-top: 10px;">
+            <div class="stat">
+                <span class="stat-label">Distance:</span>
+                <span class="stat-val highlight"><span id="valDist">--</span> cm</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Taille Réelle:</span>
+                <span class="stat-val" style="color:#ff0;"><span id="valSizeMm">--</span> mm</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Niveau (Acuité):</span>
+                <span class="stat-val"><span id="valAcuity">--</span></span>
+            </div>
+        </div>
 
-      <!-- 4 cm -->
-      <line x1="40" y1="0" x2="40" y2="-8" stroke="black" stroke-width="1"/>
-      <text x="40" y="-10">4</text>
+        <!-- Boutons d'action contextuels -->
+        <button id="btnStartTest" onclick="launchThresholdTest()" style="background:#ff9f43; color:black; margin-top:15px;">
+            🟡 LANCER LE TEST DE SEUIL (STATIQUE)
+        </button>
+        
+        <button id="btnStartTraining" onclick="startTraining()" style="display:none; background:#00b894; color:white; margin-top:15px;">
+            🚀 COMMENCER L'ENTRAINEMENT (DYNAMIQUE)
+        </button>
 
-      <!-- 5 cm -->
-      <line x1="50" y1="0" x2="50" y2="-8" stroke="black" stroke-width="1"/>
-      <text x="50" y="-10">5</text>
+        <button class="secondary" onclick="toggleCalib()">⚙️ Calibration Écran</button>
 
-      <!-- 6 cm -->
-      <line x1="60" y1="0" x2="60" y2="-8" stroke="black" stroke-width="1"/>
-      <text x="60" y="-10">6</text>
+        <!-- PANNEAU CALIBRATION -->
+        <div id="calibPanel">
+            <span class="calib-note">
+                Ajustez pour que la lettre fasse <b>8.7mm</b> à 60cm.
+            </span>
+            <div class="stat">
+                <span class="stat-label">Facteur Zoom:</span>
+                <span class="stat-val" id="valFactor">1.5</span>
+            </div>
+            <input type="range" id="dpiSlider" min="0.5" max="3.0" step="0.05" value="1.5" oninput="updateDpiSetting()">
+            <button onclick="saveAndCloseCalib()" style="background:#444; color:white; margin-top:5px;">OK</button>
+        </div>
+    </div>
 
-      <!-- 7 cm -->
-      <line x1="70" y1="0" x2="70" y2="-8" stroke="black" stroke-width="1"/>
-      <text x="70" y="-10">7</text>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script>
 
-      <!-- 8 cm -->
-      <line x1="80" y1="0" x2="80" y2="-8" stroke="black" stroke-width="1"/>
-      <text x="80" y="-10">8</text>
+    <script>
+        let model, video, letterEl;
+        let appState = 'INIT'; 
+        let acuity = 1.0;
+        let baselineAcuity = 0;
+        let currentDist = 60;
+        let dpiFactor = 1.5;
+        
+        // Tracking
+        let lastHeadPos = null, lastTime = 0, speed = 0, smoothedSpeed = 0;
+        let lastFlashTime = 0;
+        const letters = "C D F H L N O P T U V Z".split(" ");
 
-      <!-- 9 cm -->
-      <line x1="90" y1="0" x2="90" y2="-8" stroke="black" stroke-width="1"/>
-      <text x="90" y="-10">9</text>
+        async function startApp() {
+            video = document.getElementById('video');
+            letterEl = document.getElementById('letterDisplay');
+            
+            if(localStorage.getItem('avd_dpi')) dpiFactor = parseFloat(localStorage.getItem('avd_dpi'));
+            document.getElementById('dpiSlider').value = dpiFactor;
+            document.getElementById('valFactor').innerText = dpiFactor.toFixed(2);
 
-      <!-- 10 cm -->
-      <line x1="100" y1="0" x2="100" y2="-10" stroke="black" stroke-width="1"/>
-      <text x="100" y="-15">10</text>
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+                video.srcObject = stream;
+                video.onloadedmetadata = async () => {
+                    document.getElementById('startOverlay').style.display = 'none';
+                    document.getElementById('ui').style.display = 'block';
+                    video.play();
+                    model = await blazeface.load();
+                    appState = 'CALIB';
+                    document.getElementById('modeDisplay').innerText = "MODE: PRÊT";
+                    loop();
+                };
+            } catch (e) { alert("Caméra requise"); }
+        }
 
-      <!-- 15 cm -->
-      <line x1="150" y1="0" x2="150" y2="-10" stroke="black" stroke-width="1"/>
-      <text x="150" y="-15">15</text>
+        function toggleCalib() {
+            const p = document.getElementById('calibPanel');
+            p.style.display = p.style.display === 'none' ? 'block' : 'none';
+        }
 
-      <!-- 20 cm -->
-      <line x1="200" y1="0" x2="200" y2="-10" stroke="black" stroke-width="1"/>
-      <text x="200" y="-15">20</text>
+        function updateDpiSetting() {
+            dpiFactor = parseFloat(document.getElementById('dpiSlider').value);
+            document.getElementById('valFactor').innerText = dpiFactor.toFixed(2);
+            localStorage.setItem('avd_dpi', dpiFactor);
+        }
+        function saveAndCloseCalib() { document.getElementById('calibPanel').style.display = 'none'; }
 
-      <!-- 25 cm -->
-      <line x1="250" y1="0" x2="250" y2="-10" stroke="black" stroke-width="1"/>
-      <text x="250" y="-15">25</text>
+        // --- TEST DE SEUIL (STATIQUE) ---
+        function launchThresholdTest() {
+            appState = 'TEST_SEUIL';
+            document.getElementById('thresholdOverlay').style.display = 'flex';
+            document.getElementById('modeDisplay').innerText = "MODE: TEST STATIQUE";
+            
+            acuity = 0.1; // Départ très facile (grosses lettres)
+            showNextStaticLetter();
+        }
 
-      <!-- 29 cm -->
-      <line x1="290" y1="0" x2="290" y2="-8" stroke="black" stroke-width="1"/>
-      <text x="290" y="-10">29</text>
-    </g>
+        let staticTimeout;
+        function showNextStaticLetter() {
+            if(appState !== 'TEST_SEUIL') return;
 
-    <!-- Graduations secondaires (1 mm) -->
-    <g stroke="black" stroke-width="0.5">
-      <!-- De 0 à 10 cm -->
-      <g transform="translate(0, 0)">
-        <line x1="0" y1="0" x2="0" y2="-3"/>
-        <line x1="1" y1="0" x2="1" y2="-3"/>
-        <line x1="2" y1="0" x2="2" y2="-3"/>
-        <line x1="3" y1="0" x2="3" y2="-3"/>
-        <line x1="4" y1="0" x2="4" y2="-3"/>
-        <line x1="5" y1="0" x2="5" y2="-3"/>
-        <line x1="6" y1="0" x2="6" y2="-3"/>
-        <line x1="7" y1="0" x2="7" y2="-3"/>
-        <line x1="8" y1="0" x2="8" y2="-3"/>
-        <line x1="9" y1="0" x2="9" y2="-3"/>
-      </g>
+            // 1. Calcul taille
+            let sizePx = calculateSizePx(currentDist, acuity);
+            letterEl.style.fontSize = sizePx + 'px';
+            letterEl.innerText = letters[Math.floor(Math.random() * letters.length)];
 
-      <!-- De 10 à 20 cm -->
-      <g transform="translate(100, 0)">
-        <line x1="0" y1="0" x2="0" y2="-3"/>
-        <line x1="1" y1="0" x2="1" y2="-3"/>
-        <line x1="2" y1="0" x2="2" y2="-3"/>
-        <line x1="3" y1="0" x2="3" y2="-3"/>
-        <line x1="4" y1="0" x2="4" y2="-3"/>
-        <line x1="5" y1="0" x2="5" y2="-3"/>
-        <line x1="6" y1="0" x2="6" y2="-3"/>
-        <line x1="7" y1="0" x2="7" y2="-3"/>
-        <line x1="8" y1="0" x2="8" y2="-3"/>
-        <line x1="9" y1="0" x2="9" y2="-3"/>
-      </g>
+            // 2. Affichage Flash 60ms
+            letterEl.style.opacity = '1';
+            
+            // Utilisation de setTimeout pour 60ms
+            setTimeout(() => {
+                letterEl.style.opacity = '0';
+            }, 60);
 
-      <!-- De 20 à 29 cm -->
-      <g transform="translate(200, 0)">
-        <line x1="0" y1="0" x2="0" y2="-3"/>
-        <line x1="1" y1="0" x2="1" y2="-3"/>
-        <line x1="2" y1="0" x2="2" y2="-3"/>
-        <line x1="3" y1="0" x2="3" y2="-3"/>
-        <line x1="4" y1="0" x2="4" y2="-3"/>
-        <line x1="5" y1="0" x2="5" y2="-3"/>
-        <line x1="6" y1="0" x2="6" y2="-3"/>
-        <line x1="7" y1="0" x2="7" y2="-3"/>
-        <line x1="8" y1="0" x2="8" y2="-3"/>
-        <line x1="9" y1="0" x2="9" y2="-3"/>
-      </g>
-    </g>
-  </g>
+            // 3. Prochaine lettre dans 1.2 secondes
+            staticTimeout = setTimeout(() => {
+                if(appState === 'TEST_SEUIL') {
+                    acuity += 0.1; // Augmente difficulté
+                    if(acuity > 2.0) acuity = 2.0;
+                    showNextStaticLetter();
+                }
+            }, 1200);
+        }
 
-  <!-- Titre -->
-  <text x="148.5" y="195" font-size="12" text-anchor="middle" font-weight="bold">RÈGLE EN CENTIMÈTRES (0-29 cm)</text>
-</svg>
+        function stopThresholdTest() {
+            clearTimeout(staticTimeout);
+            document.getElementById('thresholdOverlay').style.display = 'none';
+            
+            baselineAcuity = acuity; // C'est la limite où ça a échoué
+            
+            // On règle l'entrainement un peu EN DESSOUS du seuil (lettres plus grosses) pour réussir
+            // Si seuil = 0.8, entrainement = 0.5
+            let trainingAcuity = Math.max(0.1, baselineAcuity - 0.3); 
+            acuity = trainingAcuity;
+            
+            document.getElementById('valAcuity').innerText = acuity.toFixed(1);
+            
+            document.getElementById('btnStartTest').style.display = 'none';
+            document.getElementById('btnStartTraining').style.display = 'block';
+            
+            document.getElementById('modeDisplay').innerText = "PRÊT POUR DYNAMIQUE";
+            alert(`Seuil mesuré : ~${baselineAcuity.toFixed(1)}\nNiveau entrainement réglé à : ${acuity.toFixed(1)}`);
+        }
+
+        function startTraining() {
+            appState = 'TRAINING';
+            document.getElementById('modeDisplay').innerText = "MODE: ENTRAINEMENT DYNAMIQUE";
+            document.getElementById('btnStartTraining').style.display = 'none';
+            document.getElementById('btnStartTest').style.display = 'block';
+            document.getElementById('btnStartTest').innerText = "🔄 Refaire le Test de Seuil";
+        }
+
+        // --- BOUCLE TRACKING ---
+        async function loop() {
+            if (!model) { requestAnimationFrame(loop); return; }
+
+            const predictions = await model.estimateFaces(video, false);
+            if (predictions.length > 0) {
+                const face = predictions[0];
+                const landmarks = face.landmarks;
+                const nose = landmarks[2];
+                
+                // Estimation Distance Simple
+                const boxWidth = face.boundingBox.width;
+                if(boxWidth > 0) {
+                   let d = (4500 / boxWidth); // Coefficient ajusté pour webcam/mobile
+                   currentDist = currentDist * 0.8 + d * 0.2;
+                }
+
+                // Calcul Vitesse
+                const now = performance.now();
+                if (lastHeadPos) {
+                    const dt = now - lastTime;
+                    const dx = nose[0] - lastHeadPos.x;
+                    const dy = nose[1] - lastHeadPos.y;
+                    const rawSpeed = Math.hypot(dx, dy) / dt; 
+                    smoothedSpeed = smoothedSpeed * 0.7 + rawSpeed * 0.3;
+                    speed = smoothedSpeed * 1000; // Conversion arbitraire
+                }
+                lastHeadPos = { x: nose[0], y: nose[1] };
+                lastTime = now;
+
+                // Trigger Dynamique
+                if (appState === 'TRAINING') {
+                    const minSpeed = 150; // Seuil déclenchement
+                    const cooldown = 1000;
+                    
+                    if (speed > minSpeed && (now - lastFlashTime > cooldown)) {
+                        lastFlashTime = now;
+                        letterEl.innerText = letters[Math.floor(Math.random() * letters.length)];
+                        letterEl.style.fontSize = calculateSizePx(currentDist, acuity) + 'px';
+                        letterEl.style.opacity = '1';
+                        
+                        // FLASH 60ms
+                        setTimeout(() => {
+                            letterEl.style.opacity = '0';
+                        }, 60);
+                    }
+                }
+
+            } else {
+                speed *= 0.9;
+            }
+
+            updateUI();
+            requestAnimationFrame(loop);
+        }
+
+        function calculateSizePx(distCm, acuityDecimal) {
+            let angleRad = (5 / 60) * (Math.PI / 180);
+            let heightMm = (distCm * 10) * Math.tan(angleRad) / acuityDecimal;
+            let inches = heightMm / 25.4;
+            let px = inches * 96 * dpiFactor;
+            return Math.max(20, Math.round(px));
+        }
+
+        function updateUI() {
+            document.getElementById('valSpeed').innerText = Math.round(speed);
+            document.getElementById('valDist').innerText = Math.round(currentDist);
+            
+            const sizeMm = (currentDist * 10) * Math.tan((5/60)*Math.PI/180) / acuity;
+            document.getElementById('valSizeMm').innerText = sizeMm.toFixed(1);
+            document.getElementById('valAcuity').innerText = acuity.toFixed(1);
+            
+            const bar = document.getElementById('speedBar');
+            bar.style.width = Math.min(100, speed / 3) + '%'; // Echelle graphique
+            bar.style.backgroundColor = speed > 150 ? '#f00' : '#0f0';
+        }
+    </script>
+</body>
+</html>
