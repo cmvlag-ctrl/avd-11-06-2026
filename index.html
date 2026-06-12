@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test AV Flashé - Version Fonctionnelle</title>
+    <title>Test d'Acuité Flashée - Version Finale</title>
     <style>
         body {
             margin: 0;
@@ -17,14 +17,20 @@
             height: 100vh;
             text-align: center;
         }
+        #testContainer {
+            width: 100%;
+            max-width: 1000px;
+            padding: 20px;
+        }
         #videoContainer {
             position: relative;
             margin-bottom: 20px;
             border: 2px solid #4ecdc4;
             border-radius: 10px;
             overflow: hidden;
-            width: 320px;
-            height: 240px;
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 4/3;
         }
         #video {
             width: 100%;
@@ -35,16 +41,17 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 200px;
-            font-weight: bold;
             color: white;
-            text-shadow: 0 0 20px #fff;
+            text-shadow: 0 0 30px #fff;
             opacity: 0;
             transition: opacity 0.1s linear;
             pointer-events: none;
+            font-weight: bold;
+            text-align: center;
+            z-index: 10;
         }
         #prompt {
-            font-size: 20px;
+            font-size: 24px;
             margin: 20px 0;
             min-height: 60px;
         }
@@ -69,7 +76,7 @@
             background: #45b7b8;
         }
         #stats {
-            font-size: 18px;
+            font-size: 20px;
             margin: 20px 0;
             background: rgba(0,0,0,0.5);
             padding: 15px;
@@ -86,41 +93,54 @@
             font-weight: bold;
         }
         .hidden { display: none; }
-        .warning { color: #ff0; }
+        .correct { color: #0f0; }
+        .incorrect { color: #f55; }
+        #finalResult {
+            font-size: 28px;
+            margin: 20px 0;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <h1>Test d'Acuité Visuelle Flashé</h1>
-    <p>Identifiez les lettres qui apparaissent brièvement (60 ms)</p>
+    <div id="testContainer">
+        <h1>Test d'Acuité Visuelle Flashée</h1>
+        <p>Identifiez les lettres qui apparaissent brièvement (60 ms)</p>
 
-    <div id="videoContainer">
-        <video id="video" playsinline autoplay muted></video>
-        <div id="letterDisplay"></div>
+        <div id="videoContainer">
+            <video id="video" playsinline autoplay muted></video>
+            <div id="letterDisplay"></div>
+        </div>
+
+        <div id="prompt">Cliquez sur "DÉMARRER" pour commencer</div>
+        <div id="finalResult"></div>
+
+        <div id="validationButtons" class="hidden">
+            <button class="letterButton" data-letter="A">A</button>
+            <button class="letterButton" data-letter="C">C</button>
+            <button class="letterButton" data-letter="D">D</button>
+            <button class="letterButton" data-letter="F">F</button>
+            <button class="letterButton" data-letter="H">H</button>
+            <button class="letterButton" data-letter="L">L</button>
+            <button class="letterButton" data-letter="N">N</button>
+            <button class="letterButton" data-letter="O">O</button>
+            <button class="letterButton" data-letter="P">P</button>
+            <button class="letterButton" data-letter="T">T</button>
+            <button class="letterButton" data-letter="U">U</button>
+            <button class="letterButton" data-letter="V">V</button>
+            <button class="letterButton" data-letter="Z">Z</button>
+        </div>
+
+        <div id="stats" class="hidden">
+            <strong>Score : </strong><span id="score">0/0 (0%)</span><br>
+            <strong>Taille actuelle : </strong><span id="currentSize">--</span>
+        </div>
+
+        <button id="startButton">DÉMARRER LE TEST</button>
     </div>
-
-    <div id="prompt">Cliquez sur "Démarrer le test" pour commencer</div>
-
-    <div id="validationButtons" class="hidden">
-        <button class="letterButton" data-letter="A">A</button>
-        <button class="letterButton" data-letter="C">C</button>
-        <button class="letterButton" data-letter="D">D</button>
-        <button class="letterButton" data-letter="F">F</button>
-        <button class="letterButton" data-letter="H">H</button>
-        <button class="letterButton" data-letter="L">L</button>
-        <button class="letterButton" data-letter="N">N</button>
-        <button class="letterButton" data-letter="O">O</button>
-        <button class="letterButton" data-letter="P">P</button>
-        <button class="letterButton" data-letter="T">T</button>
-        <button class="letterButton" data-letter="U">U</button>
-        <button class="letterButton" data-letter="V">V</button>
-        <button class="letterButton" data-letter="Z">Z</button>
-    </div>
-
-    <div id="stats" class="hidden">
-        <strong>Score : </strong><span id="score">0/0 (0%)</span>
-    </div>
-
-    <button id="startButton">DÉMARRER LE TEST</button>
 
     <script>
         // --- CONFIGURATION ---
@@ -128,6 +148,11 @@
         let testRunning = false;
         let correctAnswers = 0;
         let totalQuestions = 0;
+        let currentLetter = "";
+        let isWaitingForAnswer = false;
+        let errorsConsecutives = 0;
+        let currentFontSize = 300; // Taille initiale maximale
+        const MIN_FONT_SIZE = 20; // Taille minimale avant d'arrêter le test
 
         // --- ÉLÉMENTS DOM ---
         const letterDisplay = document.getElementById('letterDisplay');
@@ -137,6 +162,8 @@
         const video = document.getElementById('video');
         const validationButtons = document.getElementById('validationButtons');
         const scoreDisplay = document.getElementById('score');
+        const currentSizeDisplay = document.getElementById('currentSize');
+        const finalResult = document.getElementById('finalResult');
 
         // --- INITIALISATION ---
         startButton.addEventListener('click', startTest);
@@ -147,9 +174,8 @@
         // --- DÉMARRER LE TEST ---
         async function startTest() {
             try {
-                console.log("Démarrage de la caméra...");
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: 320, height: 240 }
+                    video: { facingMode: 'user', width: 400, height: 300 }
                 });
                 video.srcObject = stream;
                 video.play();
@@ -157,66 +183,122 @@
                 startButton.classList.add('hidden');
                 validationButtons.classList.remove('hidden');
                 stats.classList.remove('hidden');
+                finalResult.style.display = 'none';
                 prompt.textContent = "Regardez l'écran...";
                 testRunning = true;
+                isWaitingForAnswer = false;
+                correctAnswers = 0;
+                totalQuestions = 0;
+                errorsConsecutives = 0;
+                currentFontSize = 300;
+                updateSizeDisplay();
 
-                console.log("Test démarré. Lancement de la boucle de flash...");
-                startLetterFlashLoop();
+                // Afficher la première lettre après 1 seconde
+                setTimeout(showNextLetter, 1000);
 
             } catch (err) {
-                prompt.innerHTML = `<span class="warning">Erreur caméra : ${err.message}</span>`;
+                prompt.innerHTML = `<span class="incorrect">Erreur caméra : ${err.message}</span>`;
                 console.error("Erreur caméra:", err);
             }
         }
 
-        // --- BOUCLE PRINCIPALE DE FLASH ---
-        function startLetterFlashLoop() {
+        // --- METTRE À JOUR L'AFFICHAGE DE LA TAILLE ---
+        function updateSizeDisplay() {
+            currentSizeDisplay.textContent = `${currentFontSize}px`;
+        }
+
+        // --- AFFICHER UNE NOUVELLE LETTRE ---
+        function showNextLetter() {
             if (!testRunning) return;
 
-            console.log("Nouveau cycle de flash...");
-
             // Choisir une lettre aléatoire
-            const randomLetter = letters[Math.floor(Math.random() * letters.length)];
-            console.log("Lettre flashée:", randomLetter);
+            currentLetter = letters[Math.floor(Math.random() * letters.length)];
 
             // Afficher la lettre pendant 60 ms
-            letterDisplay.innerText = randomLetter;
+            letterDisplay.innerText = currentLetter;
+            letterDisplay.style.fontSize = `${currentFontSize}px`;
             letterDisplay.style.opacity = '1';
 
             // Masquer après 60 ms
             setTimeout(() => {
                 letterDisplay.style.opacity = '0';
-                console.log("Lettre masquée");
+                isWaitingForAnswer = true;
+                prompt.innerHTML = `<span class="incorrect">Quelle lettre avez-vous vue ?</span>`;
             }, 60);
-
-            // Relancer après 1.5 secondes
-            setTimeout(startLetterFlashLoop, 1500);
         }
 
         // --- GESTION DES RÉPONSES ---
         function handleAnswer(selectedLetter) {
-            if (!testRunning) return;
+            if (!testRunning || !isWaitingForAnswer) return;
 
             totalQuestions++;
-            const buttons = validationButtons.querySelectorAll('.letterButton');
+            isWaitingForAnswer = false;
 
-            if (selectedLetter === letterDisplay.innerText) {
+            if (selectedLetter === currentLetter) {
                 correctAnswers++;
-                prompt.innerHTML = `<span style="color: #0f0; font-size: 24px;">✅ Correct !</span>`;
+                prompt.innerHTML = `<span class="correct" style="font-size: 28px;">✅ CORRECT !</span>`;
+                errorsConsecutives = 0;
+
+                // Réduire la taille de la lettre pour le prochain test
+                currentFontSize = Math.max(currentFontSize - 20, MIN_FONT_SIZE);
+                updateSizeDisplay();
             } else {
-                prompt.innerHTML = `<span style="color: #f55; font-size: 24px;">❌ Faux ! La lettre était : ${letterDisplay.innerText}</span>`;
+                prompt.innerHTML = `<span class="incorrect" style="font-size: 28px;">❌ FAUX ! C'était : ${currentLetter}</span>`;
+                errorsConsecutives++;
+
+                // Augmenter légèrement la taille après une erreur
+                currentFontSize = Math.min(currentFontSize + 30, 300);
+                updateSizeDisplay();
             }
 
             // Mettre à jour les statistiques
             const accuracy = Math.round((correctAnswers / totalQuestions) * 100);
             scoreDisplay.textContent = `${correctAnswers}/${totalQuestions} (${accuracy}%)`;
 
+            // Vérifier si on a atteint 3 erreurs consécutives
+            if (errorsConsecutives >= 3) {
+                endTest();
+                return;
+            }
+
             // Désactiver les boutons pendant 2 secondes
-            buttons.forEach(button => button.disabled = true);
+            validationButtons.querySelectorAll('.letterButton').forEach(button => {
+                button.disabled = true;
+            });
+
+            // Attendre 2 secondes avant de montrer la prochaine lettre
             setTimeout(() => {
-                prompt.textContent = "Identifiez la prochaine lettre...";
-                buttons.forEach(button => button.disabled = false);
+                prompt.textContent = "Prêt pour la prochaine lettre...";
+                validationButtons.querySelectorAll('.letterButton').forEach(button => {
+                    button.disabled = false;
+                });
+                showNextLetter();
             }, 2000);
+        }
+
+        // --- ARRÊTER LE TEST ---
+        function endTest() {
+            testRunning = false;
+
+            // Calculer le résultat final
+            const resultText = document.createElement('div');
+            resultText.innerHTML = `
+                <strong>TEST TERMINÉ</strong><br>
+                <strong>Taille minimale identifiable :</strong> ${currentFontSize}px<br>
+                <strong>Score final :</strong> ${correctAnswers}/${totalQuestions} (${Math.round((correctAnswers / totalQuestions) * 100)}%)<br>
+                <strong>Acuité flashée :</strong> ${currentFontSize <= 40 ? "Excellente" : currentFontSize <= 80 ? "Bonne" : currentFontSize <= 120 ? "Moyenne" : "Faible"}
+            `;
+            resultText.style.color = '#4ecdc4';
+            resultText.style.fontSize = '24px';
+
+            finalResult.innerHTML = '';
+            finalResult.appendChild(resultText);
+            finalResult.style.display = 'block';
+
+            // Arrêter la caméra
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
         }
     </script>
 </body>
