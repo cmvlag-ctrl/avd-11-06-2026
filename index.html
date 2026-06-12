@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Test AV - Calibrage Simplifié</title>
+    <title>Test AV - Calibrage d'Acuité</title>
     <style>
         body {
             margin: 0;
@@ -14,20 +14,8 @@
             touch-action: manipulation;
         }
 
-        video {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            opacity: 0.2;
-            z-index: 1;
-            transform: scaleX(-1);
-        }
-
         #letterDisplay {
-            position: absolute;
+            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
@@ -35,69 +23,47 @@
             font-weight: bold;
             color: white;
             opacity: 0;
-            z-index: 10;
+            z-index: 999; /* Très haut pour être au-dessus de tout */
             pointer-events: none;
             text-shadow: 0 0 15px rgba(255, 255, 255, 0.7), 0 0 5px black;
             transition: opacity 0.05s linear;
         }
 
-        #startOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 20px;
-        }
-
-        .error {
-            color: #f55;
-            font-size: 11px;
-            margin-top: 10px;
-        }
-
-        #calibAcuityOverlay {
+        #calibOverlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             background: rgba(0,0,0,0.95);
-            z-index: 99;
-            display: none;
+            z-index: 1000; /* Plus haut que la lettre */
+            display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             padding: 20px;
         }
 
-        #calibAcuityTitle {
-            font-size: 18px;
+        #calibTitle {
+            font-size: 20px;
             margin-bottom: 20px;
             color: #0ff;
         }
 
-        #calibAcuityInstructions {
+        #calibInstructions {
             font-size: 14px;
             margin-bottom: 30px;
             text-align: center;
             max-width: 300px;
         }
 
-        #calibAcuityControls {
+        #calibControls {
             display: flex;
             gap: 20px;
             margin-bottom: 20px;
         }
 
-        button.calibAcuityBtn {
+        .calibBtn {
             padding: 12px 24px;
             font-size: 16px;
             font-weight: bold;
@@ -109,25 +75,25 @@
             color: white;
         }
 
-        button.calibAcuityBtn:hover {
+        .calibBtn:hover {
             background: #3db8b8;
         }
 
-        #calibAcuityFeedback {
+        #calibFeedback {
             font-size: 14px;
             margin-top: 20px;
             min-height: 20px;
             color: #ff0;
         }
 
-        #calibAcuityResult {
+        #calibResult {
             margin-top: 30px;
             font-size: 16px;
             color: #0ff;
             font-weight: bold;
         }
 
-        #calibAcuitySkip {
+        #skipCalib {
             position: absolute;
             bottom: 20px;
             right: 20px;
@@ -135,286 +101,85 @@
             padding: 8px 12px;
             font-size: 12px;
         }
-
-        #mainInterface {
-            display: none;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 20;
-        }
-
-        #topBanner {
-            position: absolute;
-            top: 8px;
-            left: 8px;
-            right: 8px;
-            background: rgba(0,0,0,0.75);
-            padding: 6px 10px;
-            border-radius: 6px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.4);
-        }
-
-        .top-section {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        .top-stat {
-            font-size: 10px;
-            margin: 1px 0;
-            color: #0f0;
-            font-family: monospace;
-            white-space: nowrap;
-        }
-
-        .speed-gauge {
-            height: 4px;
-            background: #333;
-            margin: 4px 0 0 0;
-            border-radius: 2px;
-            overflow: hidden;
-            width: 100px;
-        }
-
-        .speed-bar {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #0f0, #ff0, #f00);
-            transition: width 0.1s linear;
-        }
-
-        #bottomBanner {
-            position: absolute;
-            bottom: 8px;
-            left: 8px;
-            right: 8px;
-            background: rgba(0,0,0,0.75);
-            padding: 8px;
-            border-radius: 6px;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.4);
-        }
-
-        .bottom-content {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .bottom-left {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .bottom-right {
-            display: flex;
-            gap: 6px;
-        }
-
-        button {
-            background: #4ecdc4;
-            border: none;
-            padding: 6px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 11px;
-            transition: background 0.2s;
-            white-space: nowrap;
-        }
-
-        button:hover {
-            background: #3db8b8;
-        }
-
-        button.secondary {
-            background: #555;
-            color: white;
-        }
-
-        button.secondary:hover {
-            background: #444;
-        }
     </style>
 </head>
 <body>
 
-    <!-- Overlay de démarrage -->
-    <div id="startOverlay">
-        <h1 style="margin:0 0 10px 0;">Test Acuité Visuelle</h1>
-        <p style="margin:0 0 20px 0;">Calibrage automatique de votre acuité</p>
-        <button onclick="startAcuityCalibration()" id="startBtn">COMMENCER LE TEST</button>
-        <p id="errorMsg" class="error"></p>
-    </div>
+    <!-- Lettre qui s'affiche par-dessus tout -->
+    <div id="letterDisplay">A</div>
 
-    <!-- Overlay de calibrage d'acuité -->
-    <div id="calibAcuityOverlay">
-        <h2 id="calibAcuityTitle">Calibrage de l'acuité visuelle</h2>
-        <p id="calibAcuityInstructions">
-            Une lettre va s'afficher pendant <b>60ms</b>.<br>
-            Cliquez sur "VU" si vous l'avez vue, "PAS VU" sinon.<br>
-            Le test s'adaptera automatiquement.
+    <!-- Overlay de calibrage -->
+    <div id="calibOverlay">
+        <h2 id="calibTitle">Calibrage de l'acuité visuelle</h2>
+        <p id="calibInstructions">
+            Une lettre va s'afficher brièvement.<br>
+            Cliquez sur "VU" si vous l'avez vue, "PAS VU" sinon.
         </p>
 
-        <div id="calibAcuityControls">
-            <button class="calibAcuityBtn" onclick="calibAcuityResponse(true)" id="btnVu">VU</button>
-            <button class="calibAcuityBtn" onclick="calibAcuityResponse(false)" id="btnPasVu">PAS VU</button>
+        <div id="calibControls">
+            <button class="calibBtn" onclick="calibResponse(true)">VU</button>
+            <button class="calibBtn" onclick="calibResponse(false)">PAS VU</button>
         </div>
 
-        <div id="calibAcuityFeedback"></div>
-        <div id="calibAcuityResult"></div>
+        <div id="calibFeedback"></div>
+        <div id="calibResult"></div>
 
-        <button onclick="skipAcuityCalibration()" class="calibAcuityBtn calibAcuitySkip">Passer le calibrage</button>
+        <button onclick="skipCalibration()" class="calibBtn" id="skipCalib">Passer</button>
     </div>
-
-    <!-- Interface principale -->
-    <div id="mainInterface">
-        <video id="video" playsinline autoplay muted></video>
-        <div id="letterDisplay">A</div>
-
-        <div id="topBanner">
-            <div class="top-section">
-                <div class="top-stat" id="statusInit">Initialisation...</div>
-                <div class="top-stat" id="statusSpeed">Vit: 0</div>
-                <div class="speed-gauge"><div class="speed-bar" id="speedBar"></div></div>
-            </div>
-            <div class="top-section">
-                <div class="top-stat" id="statusDist">Dist: -- cm</div>
-                <div class="top-stat" id="statusSize">Lettre: -- px</div>
-            </div>
-        </div>
-
-        <div id="bottomBanner">
-            <div class="bottom-content">
-                <div class="bottom-left">
-                    <div style="font-size:10px;">
-                        Acuité: <span id="valAcuity">1.0</span>
-                        <input type="range" id="acuity" min="0.1" max="2.0" step="0.1" value="1.0" oninput="updateParams()" style="width:100px;">
-                    </div>
-                </div>
-                <div class="bottom-right">
-                    <button class="secondary" onclick="toggleCalib()">📏 Calibrer</button>
-                    <button onclick="startApp()" id="startBtnBottom">RELANCER</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script>
 
     <script>
         // =============================================
-        // VARIABLES GLOBALES
+        // VARIABLES
         // =============================================
-        let model = null;
-        let video = document.getElementById('video');
-        let letterEl = document.getElementById('letterDisplay');
-        let startOverlay = document.getElementById('startOverlay');
-        let calibAcuityOverlay = document.getElementById('calibAcuityOverlay');
-        let mainInterface = document.getElementById('mainInterface');
-        let errorMsg = document.getElementById('errorMsg');
-        let topBanner = document.getElementById('topBanner');
-        let bottomBanner = document.getElementById('bottomBanner');
-
-        // Calibration physique
-        let calibrationFactor = 1.0;
-        let screenDPI = 300;
-
-        // Calibration d'acuité
-        let acuityCalibrated = null;
-        let acuityStandard = 1.0;
-        let isCalibrating = false;
         let minSize = 20;
         let maxSize = 300;
         let currentSize = 150;
         let letters = "C D F H L N O P T U V Z".split(" ");
         let currentLetterIndex = 0;
-
-        // Tracking
-        let lastHeadPos = null;
-        let lastTime = 0;
-        let speed = 0;
-        let smoothedSpeed = 0;
-        let distance = 50;
-        let rawDistance = 50;
-        let state = 'IDLE';
-        let lastFlashTime = 0;
+        let acuityCalibrated = null;
+        let isCalibrating = false;
 
         // =============================================
-        // FONCTIONS DE CALIBRATION PHYSIQUE
+        // FONCTIONS DE CALIBRAGE
         // =============================================
-        function toggleCalib() {
-            alert("Fonction de calibration physique (1cm) - À implémenter si nécessaire");
-        }
+        function startCalibration() {
+            document.getElementById('calibOverlay').style.display = 'flex';
+            document.getElementById('letterDisplay').style.opacity = '0';
+            isCalibrating = true;
 
-        function updateParams() {
-            acuityStandard = parseFloat(document.getElementById('acuity').value);
-            document.getElementById('valAcuity').textContent = acuityStandard.toFixed(1);
-        }
-
-        // =============================================
-        // FONCTIONS DE CALIBRAGE D'ACUITÉ SIMPLIFIÉ
-        // =============================================
-        function startAcuityCalibration() {
-            // Initialiser les variables
             minSize = 20;
             maxSize = 300;
             currentSize = 150;
-            acuityCalibrated = null;
-            isCalibrating = true;
+            document.getElementById('calibFeedback').textContent = '';
+            document.getElementById('calibResult').textContent = '';
 
-            // Afficher l'overlay de calibrage
-            startOverlay.style.display = 'none';
-            calibAcuityOverlay.style.display = 'flex';
-            document.getElementById('calibAcuityResult').textContent = '';
-            document.getElementById('calibAcuityFeedback').textContent = 'Prêt ? Cliquez sur VU ou PAS VU.';
-            document.getElementById('btnVu').disabled = false;
-            document.getElementById('btnPasVu').disabled = false;
-
-            // Afficher la première lettre
             showNextLetter();
-        }
-
-        function skipAcuityCalibration() {
-            acuityCalibrated = 1.0; // Valeur par défaut
-            calibAcuityOverlay.style.display = 'none';
-            startMainApp();
         }
 
         function showNextLetter() {
             if (!isCalibrating) return;
 
             currentLetterIndex = Math.floor(Math.random() * letters.length);
-            letterEl.textContent = letters[currentLetterIndex];
-            letterEl.style.fontSize = currentSize + 'px';
-            letterEl.style.opacity = '1';
+            document.getElementById('letterDisplay').textContent = letters[currentLetterIndex];
+            document.getElementById('letterDisplay').style.fontSize = currentSize + 'px';
+            document.getElementById('letterDisplay').style.opacity = '1';
 
             // Masquer après 60ms
             setTimeout(() => {
-                letterEl.style.opacity = '0';
+                document.getElementById('letterDisplay').style.opacity = '0';
             }, 60);
         }
 
-        function calibAcuityResponse(seen) {
+        function calibResponse(seen) {
             if (!isCalibrating) return;
 
             // Logique de recherche binaire
             if (seen) {
                 minSize = currentSize;
-                document.getElementById('calibAcuityFeedback').textContent = `Visible à ${currentSize}px`;
+                document.getElementById('calibFeedback').textContent = `Visible à ${currentSize}px`;
             } else {
                 maxSize = currentSize;
-                document.getElementById('calibAcuityFeedback').textContent = `Pas visible à ${currentSize}px`;
+                document.getElementById('calibFeedback').textContent = `Pas visible à ${currentSize}px`;
             }
 
             // Calculer la nouvelle taille
@@ -423,19 +188,16 @@
 
             // Vérifier la convergence
             if (maxSize - minSize <= 2) {
-                acuityCalibrated = calculateAcuityFromSize(oldSize);
-                document.getElementById('calibAcuityResult').textContent = `Acuité calibrée: ${acuityCalibrated.toFixed(2)}`;
-                document.getElementById('calibAcuityFeedback').textContent = 'Calibrage terminé !';
+                acuityCalibrated = calculateAcuity(oldSize);
+                document.getElementById('calibResult').textContent = `Acuité calibrée: ${acuityCalibrated.toFixed(2)}`;
+                document.getElementById('calibFeedback').textContent = 'Test terminé !';
 
-                document.getElementById('btnVu').disabled = true;
-                document.getElementById('btnPasVu').disabled = true;
+                // Désactiver les boutons
+                document.querySelectorAll('.calibBtn').forEach(btn => btn.disabled = true);
 
-                // Sauvegarder
-                localStorage.setItem('avd_acuity_calib_v1', acuityCalibrated);
-
-                // Attendre 2 secondes avant de continuer
+                // Fermer après 2 secondes
                 setTimeout(() => {
-                    calibAcuityOverlay.style.display = 'none';
+                    document.getElementById('calibOverlay').style.display = 'none';
                     startMainApp();
                 }, 2000);
                 return;
@@ -445,165 +207,30 @@
             showNextLetter();
         }
 
-        function calculateAcuityFromSize(sizePx) {
+        function calculateAcuity(sizePx) {
             // Taille de référence: 1.5mm à 40cm avec acuity=1.0
-            const heightCm = (sizePx / screenDPI) * 2.54;
+            const heightCm = (sizePx / 300) * 2.54; // 300 DPI
             const desiredSizeCm = 0.15; // 1.5mm
             return desiredSizeCm / heightCm;
         }
 
-        // =============================================
-        // FONCTIONS DE L'APPLICATION PRINCIPALE
-        // =============================================
-        async function startMainApp() {
-            try {
-                // Démarrer la caméra
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: 'user',
-                        width: { ideal: 640 },
-                        height: { ideal: 480 }
-                    }
-                });
-
-                video.srcObject = stream;
-
-                // Charger le modèle IA
-                model = await blazeface.load();
-
-                // Afficher l'interface principale
-                mainInterface.style.display = 'block';
-                topBanner.style.display = 'flex';
-                bottomBanner.style.display = 'block';
-
-                document.getElementById('statusInit').textContent = "Prêt !";
-
-                // Démarrer la boucle principale
-                loop();
-            } catch (err) {
-                errorMsg.textContent = "Erreur: " + err.message;
-                console.error(err);
-            }
+        function skipCalibration() {
+            acuityCalibrated = 1.0;
+            document.getElementById('calibOverlay').style.display = 'none';
+            startMainApp();
         }
 
         // =============================================
-        // BOUCLE PRINCIPALE
+        // DÉMARRAGE
         // =============================================
-        async function loop() {
-            if (!model) return;
-
-            try {
-                const predictions = await model.estimateFaces(video, false);
-
-                if (predictions.length > 0) {
-                    const face = predictions[0];
-                    const nose = face.landmarks[2];
-                    const leftEye = face.landmarks[0];
-                    const rightEye = face.landmarks[1];
-
-                    // Calcul de la distance
-                    const distInterYeuxPx = Math.sqrt(
-                        Math.pow(rightEye[0] - leftEye[0], 2) +
-                        Math.pow(rightEye[1] - leftEye[1], 2)
-                    );
-
-                    const K_FACTOR = 2800;
-                    if (distInterYeuxPx > 5) {
-                        let calculatedDist = K_FACTOR / distInterYeuxPx;
-                        rawDistance = calculatedDist;
-                        distance = (distance * 0.9) + (rawDistance * 0.1);
-                        distance = Math.max(30, Math.min(120, distance));
-                    }
-
-                    // Calcul de la vitesse
-                    const now = performance.now();
-                    if (lastHeadPos) {
-                        const dt = (now - lastTime);
-                        if (dt > 16) {
-                            const dx = nose[0] - lastHeadPos.x;
-                            const dy = nose[1] - lastHeadPos.y;
-                            const distPx = Math.sqrt(dx*dx + dy*dy);
-                            let rawSpeed = distPx / dt;
-                            smoothedSpeed = (smoothedSpeed * 0.7) + (rawSpeed * 0.3);
-                            speed = smoothedSpeed * 1000;
-                        }
-                    }
-                    lastHeadPos = { x: nose[0], y: nose[1] };
-                    lastTime = now;
-
-                    // Gestion de l'état
-                    handleState(speed, now);
-                    updateStats();
-
-                } else {
-                    smoothedSpeed = smoothedSpeed * 0.9;
-                    speed = smoothedSpeed * 1000;
-                    updateStats();
-                }
-            } catch (error) {
-                console.error("Erreur:", error);
-            }
-
-            requestAnimationFrame(loop);
+        function startMainApp() {
+            alert("Application principale démarrée avec acuité calibrée: " + acuityCalibrated.toFixed(2));
+            // Ici vous intégreriez votre code principal avec tracking, etc.
         }
 
-        // =============================================
-        // MACHINE D'ÉTAT
-        // =============================================
-        function handleState(currentSpeed, now) {
-            const minSpeedTrigger = 150;
-            const flashDuration = 60;
-            const cooldownDuration = 1000;
-
-            if (state === 'IDLE') {
-                if (currentSpeed > minSpeedTrigger && (now - lastFlashTime > cooldownDuration)) {
-                    state = 'FLASH';
-                    lastFlashTime = now;
-                    const randomLetter = letters[Math.floor(Math.random() * letters.length)];
-                    letterEl.textContent = randomLetter;
-                    let currentAcuity = acuityCalibrated || acuityStandard;
-                    letterEl.style.fontSize = calculateSize(distance, currentAcuity) + 'px';
-                    letterEl.style.opacity = '1';
-
-                    setTimeout(() => {
-                        letterEl.style.opacity = '0';
-                        state = 'IDLE';
-                    }, flashDuration);
-                }
-            }
-        }
-
-        // =============================================
-        // FONCTIONS DE STATISTIQUES
-        // =============================================
-        function updateStats() {
-            document.getElementById('statusSpeed').textContent = `Vit: ${Math.round(speed)}`;
-            document.getElementById('statusDist').textContent = `Dist: ~${Math.round(distance)} cm`;
-
-            let currentAcuity = acuityCalibrated || acuityStandard;
-            let currentSize = calculateSize(distance, currentAcuity);
-            document.getElementById('statusSize').textContent = `Lettre: ${currentSize}px`;
-
-            let pct = Math.min(100, (speed / 250) * 100);
-            document.getElementById('speedBar').style.width = `${pct}%`;
-        }
-
-        // =============================================
-        // CALCUL DE LA TAILLE DES LETTRES
-        // =============================================
-        function calculateSize(distCm, acuityDecimal) {
-            let heightCm = (distCm * 0.00375) / acuityDecimal;
-            let heightPx = (heightCm / 2.54) * screenDPI;
-            return Math.max(20, Math.round(heightPx));
-        }
-
-        // =============================================
-        // CHARGEMENT INITIAL
-        // =============================================
+        // Démarrer le calibrage au chargement
         window.addEventListener('load', () => {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                errorMsg.textContent = "Navigateur incompatible";
-            }
+            setTimeout(startCalibration, 1000);
         });
     </script>
 </body>
