@@ -2,25 +2,20 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Test AV Flashé - Avec Validation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test AV Flashé - Version Fonctionnelle</title>
     <style>
         body {
             margin: 0;
             background: #000;
-            overflow: hidden;
-            font-family: 'Arial', sans-serif;
+            font-family: Arial, sans-serif;
             color: white;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
+            justify-content: center;
             height: 100vh;
             text-align: center;
-        }
-        #testContainer {
-            width: 100%;
-            max-width: 800px;
-            padding: 20px;
         }
         #videoContainer {
             position: relative;
@@ -28,6 +23,8 @@
             border: 2px solid #4ecdc4;
             border-radius: 10px;
             overflow: hidden;
+            width: 320px;
+            height: 240px;
         }
         #video {
             width: 100%;
@@ -46,10 +43,15 @@
             transition: opacity 0.1s linear;
             pointer-events: none;
         }
+        #prompt {
+            font-size: 20px;
+            margin: 20px 0;
+            min-height: 60px;
+        }
         #validationButtons {
             display: flex;
-            justify-content: center;
             flex-wrap: wrap;
+            justify-content: center;
             gap: 10px;
             margin: 20px 0;
         }
@@ -62,22 +64,9 @@
             cursor: pointer;
             font-weight: bold;
             min-width: 60px;
-            transition: all 0.2s;
         }
         .letterButton:hover {
             background: #45b7b8;
-            transform: scale(1.05);
-        }
-        .letterButton.correct {
-            background: #0f0;
-        }
-        .letterButton.incorrect {
-            background: #f55;
-        }
-        #prompt {
-            font-size: 20px;
-            margin: 20px 0;
-            min-height: 60px;
         }
         #stats {
             font-size: 18px;
@@ -93,74 +82,52 @@
             font-size: 20px;
             border-radius: 10px;
             cursor: pointer;
-            margin: 20px auto;
-            display: block;
+            margin-top: 20px;
             font-weight: bold;
         }
-        #startButton:hover {
-            background: #45b7b8;
-        }
-        .hidden {
-            display: none;
-        }
-        .warning {
-            color: #ff0;
-            font-weight: bold;
-        }
+        .hidden { display: none; }
+        .warning { color: #ff0; }
     </style>
 </head>
 <body>
-    <div id="testContainer">
-        <h1>Test d'Acuité Visuelle Flashé</h1>
-        <p>Identifiez les lettres qui apparaissent brièvement (60 ms)</p>
+    <h1>Test d'Acuité Visuelle Flashé</h1>
+    <p>Identifiez les lettres qui apparaissent brièvement (60 ms)</p>
 
-        <div id="videoContainer">
-            <video id="video" playsinline autoplay muted></video>
-            <div id="letterDisplay"></div>
-        </div>
-
-        <div id="prompt">Prêt ? Cliquez sur "Démarrer le test"</div>
-
-        <div id="validationButtons" class="hidden">
-            <button class="letterButton" data-letter="A">A</button>
-            <button class="letterButton" data-letter="C">C</button>
-            <button class="letterButton" data-letter="D">D</button>
-            <button class="letterButton" data-letter="F">F</button>
-            <button class="letterButton" data-letter="H">H</button>
-            <button class="letterButton" data-letter="L">L</button>
-            <button class="letterButton" data-letter="N">N</button>
-            <button class="letterButton" data-letter="O">O</button>
-            <button class="letterButton" data-letter="P">P</button>
-            <button class="letterButton" data-letter="T">T</button>
-            <button class="letterButton" data-letter="U">U</button>
-            <button class="letterButton" data-letter="V">V</button>
-            <button class="letterButton" data-letter="Z">Z</button>
-        </div>
-
-        <div id="stats" class="hidden">
-            <strong>Score : </strong><span id="score">0/0 (0%)</span><br>
-            <strong>Distance estimée : </strong><span id="distance">-- cm</span><br>
-            <strong>Taille lettre : </strong><span id="letterSize">-- px</span>
-        </div>
-
-        <button id="startButton">DÉMARRER LE TEST</button>
+    <div id="videoContainer">
+        <video id="video" playsinline autoplay muted></video>
+        <div id="letterDisplay"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script>
+    <div id="prompt">Cliquez sur "Démarrer le test" pour commencer</div>
+
+    <div id="validationButtons" class="hidden">
+        <button class="letterButton" data-letter="A">A</button>
+        <button class="letterButton" data-letter="C">C</button>
+        <button class="letterButton" data-letter="D">D</button>
+        <button class="letterButton" data-letter="F">F</button>
+        <button class="letterButton" data-letter="H">H</button>
+        <button class="letterButton" data-letter="L">L</button>
+        <button class="letterButton" data-letter="N">N</button>
+        <button class="letterButton" data-letter="O">O</button>
+        <button class="letterButton" data-letter="P">P</button>
+        <button class="letterButton" data-letter="T">T</button>
+        <button class="letterButton" data-letter="U">U</button>
+        <button class="letterButton" data-letter="V">V</button>
+        <button class="letterButton" data-letter="Z">Z</button>
+    </div>
+
+    <div id="stats" class="hidden">
+        <strong>Score : </strong><span id="score">0/0 (0%)</span>
+    </div>
+
+    <button id="startButton">DÉMARRER LE TEST</button>
 
     <script>
         // --- CONFIGURATION ---
         const letters = ["A", "C", "D", "F", "H", "L", "N", "O", "P", "T", "U", "V", "Z"];
-        const flashDuration = 60; // ms
-        const cooldownDuration = 1500; // ms entre chaque lettre
-        let currentLetter = "";
         let testRunning = false;
-        let lastFlashTime = 0;
         let correctAnswers = 0;
         let totalQuestions = 0;
-        let distance = 50; // Distance estimée (cm)
-        const K_FACTOR = 2800; // Facteur de calibration (à ajuster si nécessaire)
 
         // --- ÉLÉMENTS DOM ---
         const letterDisplay = document.getElementById('letterDisplay');
@@ -170,8 +137,6 @@
         const video = document.getElementById('video');
         const validationButtons = document.getElementById('validationButtons');
         const scoreDisplay = document.getElementById('score');
-        const distanceDisplay = document.getElementById('distance');
-        const letterSizeDisplay = document.getElementById('letterSize');
 
         // --- INITIALISATION ---
         startButton.addEventListener('click', startTest);
@@ -179,10 +144,12 @@
             button.addEventListener('click', () => handleAnswer(button.dataset.letter));
         });
 
+        // --- DÉMARRER LE TEST ---
         async function startTest() {
             try {
+                console.log("Démarrage de la caméra...");
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: 640, height: 480 }
+                    video: { facingMode: 'user', width: 320, height: 240 }
                 });
                 video.srcObject = stream;
                 video.play();
@@ -191,98 +158,53 @@
                 validationButtons.classList.remove('hidden');
                 stats.classList.remove('hidden');
                 prompt.textContent = "Regardez l'écran...";
-
-                // Charger le modèle de détection de visage
-                const model = await blazeface.load();
-
-                // Boucle principale
-                function loop() {
-                    if (!testRunning) return;
-
-                    model.estimateFaces(video, false).then(predictions => {
-                        if (predictions.length > 0) {
-                            const face = predictions[0];
-                            const leftEye = face.landmarks[0];
-                            const rightEye = face.landmarks[1];
-
-                            // Calcul de la distance inter-yeux (px)
-                            const distInterYeuxPx = Math.sqrt(
-                                Math.pow(rightEye[0] - leftEye[0], 2) +
-                                Math.pow(rightEye[1] - leftEye[1], 2)
-                            );
-
-                            // Calcul de la distance réelle (cm)
-                            if (distInterYeuxPx > 5) {
-                                distance = K_FACTOR / distInterYeuxPx;
-                                distance = Math.max(30, Math.min(200, distance)); // Limite 30-200 cm
-                                distanceDisplay.textContent = `${Math.round(distance)} cm`;
-
-                                // Mettre à jour la taille de la lettre
-                                const letterSizePx = calculateLetterSize(distance, 1.0);
-                                letterSizeDisplay.textContent = `${letterSizePx} px`;
-                            }
-                        }
-
-                        // Afficher une lettre si le temps est écoulé
-                        const now = Date.now();
-                        if (now - lastFlashTime > cooldownDuration) {
-                            showLetter();
-                            lastFlashTime = now;
-                        }
-
-                        requestAnimationFrame(loop);
-                    });
-                }
-                loop();
                 testRunning = true;
+
+                console.log("Test démarré. Lancement de la boucle de flash...");
+                startLetterFlashLoop();
+
             } catch (err) {
                 prompt.innerHTML = `<span class="warning">Erreur caméra : ${err.message}</span>`;
-                console.error(err);
+                console.error("Erreur caméra:", err);
             }
         }
 
-        // --- AFFICHAGE DES LETTRES ---
-        function showLetter() {
+        // --- BOUCLE PRINCIPALE DE FLASH ---
+        function startLetterFlashLoop() {
             if (!testRunning) return;
 
-            // Choisir une lettre aléatoire
-            currentLetter = letters[Math.floor(Math.random() * letters.length)];
-            letterDisplay.innerText = currentLetter;
+            console.log("Nouveau cycle de flash...");
 
-            // Calculer la taille adaptative en fonction de la distance
-            const letterSizePx = calculateLetterSize(distance, 1.0);
-            letterDisplay.style.fontSize = letterSizePx + 'px';
+            // Choisir une lettre aléatoire
+            const randomLetter = letters[Math.floor(Math.random() * letters.length)];
+            console.log("Lettre flashée:", randomLetter);
 
             // Afficher la lettre pendant 60 ms
+            letterDisplay.innerText = randomLetter;
             letterDisplay.style.opacity = '1';
+
+            // Masquer après 60 ms
             setTimeout(() => {
                 letterDisplay.style.opacity = '0';
-            }, flashDuration);
-        }
+                console.log("Lettre masquée");
+            }, 60);
 
-        // --- CALCUL DE LA TAILLE DES LETTRES ---
-        function calculateLetterSize(distCm, acuity) {
-            // Formule standard pour les tests d'acuité :
-            // À 10/10 (acuité=1.0), une lettre doit avoir une taille angulaire de 5 minutes d'arc.
-            // Taille en pixels = (taille_angulaire * distance) / (3438 * tan(1/60))
-            // Simplifié : taille_px = (distance_cm * 0.0145) / acuity
-            const heightCm = (distCm * 0.0145) / acuity;
-            const heightPx = (heightCm / 2.54) * 96; // 96 DPI standard
-            return Math.max(50, Math.round(heightPx)); // Taille minimale de 50px
+            // Relancer après 1.5 secondes
+            setTimeout(startLetterFlashLoop, 1500);
         }
 
         // --- GESTION DES RÉPONSES ---
         function handleAnswer(selectedLetter) {
-            if (!testRunning || !currentLetter) return;
+            if (!testRunning) return;
 
             totalQuestions++;
             const buttons = validationButtons.querySelectorAll('.letterButton');
 
-            if (selectedLetter === currentLetter) {
+            if (selectedLetter === letterDisplay.innerText) {
                 correctAnswers++;
                 prompt.innerHTML = `<span style="color: #0f0; font-size: 24px;">✅ Correct !</span>`;
             } else {
-                prompt.innerHTML = `<span style="color: #f55; font-size: 24px;">❌ Faux ! La lettre était : ${currentLetter}</span>`;
+                prompt.innerHTML = `<span style="color: #f55; font-size: 24px;">❌ Faux ! La lettre était : ${letterDisplay.innerText}</span>`;
             }
 
             // Mettre à jour les statistiques
@@ -290,32 +212,11 @@
             scoreDisplay.textContent = `${correctAnswers}/${totalQuestions} (${accuracy}%)`;
 
             // Désactiver les boutons pendant 2 secondes
-            buttons.forEach(button => {
-                button.disabled = true;
-                if (button.dataset.letter === selectedLetter) {
-                    button.classList.add(selectedLetter === currentLetter ? 'correct' : 'incorrect');
-                }
-            });
-
+            buttons.forEach(button => button.disabled = true);
             setTimeout(() => {
                 prompt.textContent = "Identifiez la prochaine lettre...";
-                buttons.forEach(button => {
-                    button.disabled = false;
-                    button.classList.remove('correct', 'incorrect');
-                });
+                buttons.forEach(button => button.disabled = false);
             }, 2000);
-        }
-
-        // --- ARRÊTER LE TEST ---
-        function stopTest() {
-            testRunning = false;
-            if (video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
-            }
-            startButton.classList.remove('hidden');
-            validationButtons.classList.add('hidden');
-            stats.classList.add('hidden');
-            prompt.textContent = "Test terminé. Cliquez sur 'Démarrer le test' pour recommencer.";
         }
     </script>
 </body>
