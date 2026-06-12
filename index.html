@@ -501,13 +501,10 @@
         }
 
         // =============================================
-        // CHARGEMENT DE BLAZEFACE (nécessaire pour la détection)
+        // CHARGEMENT DE BLAZEFACE
         // =============================================
-        // Blazeface est chargé via une URL externe (nécessite une connexion internet)
-        // Si vous voulez une version hors ligne, téléchargez le modèle et modifiez le chemin
         const blazeface = {
             load: async function() {
-                // Chargement du modèle depuis un CDN (nécessite internet)
                 return await import('https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.5/dist/blazeface.esm.js');
             }
         };
