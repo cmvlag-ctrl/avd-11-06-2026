@@ -195,20 +195,20 @@
         <div id="startOverlay">
             <h1>Test Acuité (Pro)</h1>
             <p>Détection de vitesse optimisée.</p>
-            <button onclick="startApp()">DÉMARRER</button>
+            <button onclick="startDynamicMode()">DÉMARRER (Mode Dynamique)</button>
             <button onclick="startAcuityTest()" style="background: #ffc107;">👁️ Tester mon acuité visuelle</button>
             <p id="errorMsg" class="error"></p>
         </div>
     </div>
 
-    <!-- UI principale -->
+    <!-- UI principale pour le mode dynamique -->
     <div id="ui">
         <div id="letterDisplay">A</div>
         <div style="position: absolute; bottom: 20px; left: 20px; font-size: 11px;">
             <div>Vitesse: <span id="statusSpeed">0</span> px/s</div>
             <div>Dist: ~<span id="statusDist">0</span> cm</div>
             <div>Taille: <span id="statusSize">0</span> px</div>
-            <div class="stat">K_FACTOR: <span id="statusKFactor">0</span></div>
+            <div class="stat">K_FACTOR: <span id="statusKFactor">2800</span></div>
             <div style="margin-top:5px;">
                 Acuité: <span id="valAcuity">1.0</span>
                 <input type="range" id="acuity" min="0.1" max="2.0" step="0.1" value="1.0" oninput="updateParams()" style="width:100%; margin:0;">
@@ -256,7 +256,7 @@
 
     <script>
         // =============================================
-        // VARIABLES GLOBALES
+        // VARIABLES GLOBALES (UNIQUES POUR CHAQUE MODE)
         // =============================================
         let model;
         let video = document.getElementById('video');
@@ -264,15 +264,18 @@
         let ui = document.getElementById('ui');
         let letterDisplay = document.getElementById('letterDisplay');
         let letterDisplayAcuity = document.getElementById('letterDisplayAcuity');
+        let screenDPI = 150;
+        let calibrationFactor = 1.0;
+        let K_FACTOR = 2800;
+
+        // Variables spécifiques au mode dynamique
         let speed = 0;
         let distance = 0;
         let rawDistance = 0;
         let acuity = 1.0;
-        let screenDPI = 150;
-        let calibrationFactor = 1.0;
-        let K_FACTOR = 2800; // Valeur par défaut
+        let isDynamicModeActive = false;
 
-        // Variables pour le test d'acuité
+        // Variables spécifiques au test d'acuité
         let acuityTestActive = false;
         let currentAcuitySize = 100;
         let acuityTestResponses = [];
@@ -288,7 +291,6 @@
                 calibrationFactor = parseFloat(saved);
                 document.getElementById('calibSlider').value = calibrationFactor;
                 updateCalibBar();
-                updateStats();
             }
         }
 
@@ -313,7 +315,7 @@
         }
 
         // =============================================
-        // FONCTIONS D'ACUITÉ
+        // FONCTIONS D'ACUITÉ (POUR LES DEUX MODES)
         // =============================================
         function updateParams() {
             acuity = parseFloat(document.getElementById('acuity').value);
@@ -327,16 +329,111 @@
         }
 
         // =============================================
-        // FONCTIONS DE TEST D'ACUITÉ VISUELLE
+        // MODE DYNAMIQUE (VOTRE CODE ORIGINAL)
+        // =============================================
+        async function startDynamicMode() {
+            // Réinitialisation complète du mode dynamique
+            isDynamicModeActive = true;
+            acuityTestActive = false;
+
+            loadCalib();
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+                });
+                video.srcObject = stream;
+                video.onloadedmetadata = async () => {
+                    overlay.style.display = 'none';
+                    ui.style.display = 'flex';
+                    video.play();
+                    document.getElementById('statusInit').innerText = "Chargement IA...";
+                    model = await blazeface.load();
+                    document.getElementById('statusInit').innerText = "Prêt !";
+
+                    const dpr = window.devicePixelRatio || 1;
+                    let baseDPI = dpr > 2 ? 450 : (dpr > 1 ? 300 : 150);
+                    screenDPI = baseDPI * calibrationFactor;
+                    loopDynamicMode();
+                };
+            } catch (err) {
+                document.getElementById('errorMsg').innerText = "Erreur Caméra : " + err.message;
+            }
+        }
+
+        async function loopDynamicMode() {
+            if (!model || !isDynamicModeActive) {
+                requestAnimationFrame(loopDynamicMode);
+                return;
+            }
+
+            const predictions = await model.estimateFaces(video, false);
+
+            if (predictions.length > 0) {
+                const rightEye = predictions[0].landmarks[0];
+                const leftEye = predictions[0].landmarks[1];
+
+                // --- DISTANCE ---
+                const distInterYeuxPx = Math.sqrt(
+                    Math.pow(rightEye[0] - leftEye[0], 2) +
+                    Math.pow(rightEye[1] - leftEye[1], 2)
+                );
+
+                if (distInterYeuxPx > 5) {
+                    let calculatedDist = K_FACTOR / distInterYeuxPx;
+                    rawDistance = calculatedDist;
+                    distance = (distance * 0.9) + (rawDistance * 0.1);
+                }
+
+                // --- VITESSE ---
+                const currentTime = performance.now();
+                if (predictions[0].probability[0] > 0.95) {
+                    const deltaX = Math.abs(rightEye[0] - leftEye[0]);
+                    const deltaTime = currentTime - (window.lastTime || currentTime);
+                    speed = (deltaX / deltaTime) * 1000;
+                    window.lastTime = currentTime;
+                }
+
+                // --- AFFICHAGE DE LA LETTRE (mode dynamique) ---
+                const currentSize = calculateSize(distance, acuity);
+                letterDisplay.style.fontSize = `${currentSize}px`;
+                if (speed > 150) {
+                    letterDisplay.style.opacity = '1';
+                } else {
+                    letterDisplay.style.opacity = '0';
+                }
+            }
+
+            updateDynamicStats();
+            requestAnimationFrame(loopDynamicMode);
+        }
+
+        function updateDynamicStats() {
+            document.getElementById('statusSpeed').innerText = Math.round(speed);
+            document.getElementById('statusDist').innerText = Math.round(distance);
+            const currentSize = calculateSize(distance, acuity);
+            document.getElementById('statusSize').innerText = currentSize;
+            document.getElementById('statusKFactor').innerText = K_FACTOR.toFixed(2);
+
+            // Mise à jour de la jauge de vitesse
+            let pct = Math.min(100, (speed / 250) * 100);
+            document.getElementById('speedBar').style.width = `${pct}%`;
+            if (speed > 150) document.getElementById('speedBar').style.background = '#f00';
+            else document.getElementById('speedBar').style.background = 'linear-gradient(90deg, #0f0, #ff0, #f00)';
+        }
+
+        // =============================================
+        // TEST D'ACUITÉ VISUELLE (NOUVEAU MODE)
         // =============================================
         function startAcuityTest() {
+            isDynamicModeActive = false;
+            acuityTestActive = true;
             overlay.style.display = 'none';
             document.getElementById('acuityTestPanel').style.display = 'flex';
-            acuityTestActive = true;
+            document.getElementById('acuityResult').style.display = 'none';
+
             currentAcuitySize = 100;
             acuityTestResponses = [];
             acuityTestStep = 0;
-            document.getElementById('acuityResult').style.display = 'none';
             setTimeout(showNextAcuityLetter, 1000);
         }
 
@@ -409,95 +506,6 @@
                 history: acuityTestResponses
             });
             localStorage.setItem('avd_acuity_results', JSON.stringify(results));
-        }
-
-        // =============================================
-        // FONCTIONS DE DÉTECTION DYNAMIQUE (ORIGINALES)
-        // =============================================
-        async function startApp() {
-            loadCalib();
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
-                });
-                video.srcObject = stream;
-                video.onloadedmetadata = async () => {
-                    overlay.style.display = 'none';
-                    ui.style.display = 'flex';
-                    video.play();
-                    document.getElementById('statusInit').innerText = "Chargement IA...";
-                    model = await blazeface.load();
-                    document.getElementById('statusInit').innerText = "Prêt !";
-
-                    const dpr = window.devicePixelRatio || 1;
-                    let baseDPI = dpr > 2 ? 450 : (dpr > 1 ? 300 : 150);
-                    screenDPI = baseDPI * calibrationFactor;
-                    loop();
-                };
-            } catch (err) {
-                document.getElementById('errorMsg').innerText = "Erreur Caméra : " + err.message;
-            }
-        }
-
-        async function loop() {
-            if (!model) {
-                requestAnimationFrame(loop);
-                return;
-            }
-
-            const predictions = await model.estimateFaces(video, false);
-
-            if (predictions.length > 0) {
-                const rightEye = predictions[0].landmarks[0];
-                const leftEye = predictions[0].landmarks[1];
-
-                // --- DISTANCE ---
-                const distInterYeuxPx = Math.sqrt(
-                    Math.pow(rightEye[0] - leftEye[0], 2) +
-                    Math.pow(rightEye[1] - leftEye[1], 2)
-                );
-
-                if (distInterYeuxPx > 5) {
-                    let calculatedDist = K_FACTOR / distInterYeuxPx;
-                    rawDistance = calculatedDist;
-                    distance = (distance * 0.9) + (rawDistance * 0.1);
-                }
-
-                // --- VITESSE ---
-                const currentTime = performance.now();
-                if (predictions[0].probability[0] > 0.95) {
-                    const deltaX = Math.abs(rightEye[0] - leftEye[0]);
-                    const deltaTime = currentTime - (window.lastTime || currentTime);
-                    speed = (deltaX / deltaTime) * 1000;
-                    window.lastTime = currentTime;
-                }
-
-                // --- AFFICHAGE DE LA LETTRE (mode dynamique) ---
-                const currentSize = calculateSize(distance, acuity);
-                letterDisplay.style.fontSize = `${currentSize}px`;
-                if (speed > 150) {
-                    letterDisplay.style.opacity = '1';
-                } else {
-                    letterDisplay.style.opacity = '0';
-                }
-            }
-
-            updateStats();
-            requestAnimationFrame(loop);
-        }
-
-        function updateStats() {
-            document.getElementById('statusSpeed').innerText = Math.round(speed);
-            document.getElementById('statusDist').innerText = Math.round(distance);
-            const currentSize = calculateSize(distance, acuity);
-            document.getElementById('statusSize').innerText = currentSize;
-            document.getElementById('statusKFactor').innerText = K_FACTOR.toFixed(2);
-
-            // Mise à jour de la jauge de vitesse
-            let pct = Math.min(100, (speed / 250) * 100);
-            document.getElementById('speedBar').style.width = `${pct}%`;
-            if (speed > 150) document.getElementById('speedBar').style.background = '#f00';
-            else document.getElementById('speedBar').style.background = 'linear-gradient(90deg, #0f0, #ff0, #f00)';
         }
 
         // =============================================
