@@ -110,12 +110,12 @@
 
     <script>
         const CONFIG = {
-            flashDuration: 60,      // on garde la durée courte
-            minFontSize: 20,
+            flashDuration: 60,      // durée du flash
+            minFontSize: 3,         // 🔽 plus petit possible (tu peux mettre 2 si tu veux)
             maxFontSize: 400,
             sizeDecreaseFactor: 0.9,
             sizeIncreaseFactor: 1.1,
-            maxErrorsInRow: 3,
+            maxErrorsInRow: 3,      // arrêt après 3 erreurs consécutives
             nextDelay: 500          // délai entre les essais
         };
 
@@ -206,17 +206,22 @@
             if (isCorrect) {
                 state.correctAnswers++;
                 state.errorsInRow = 0;
+
+                // 🔽 on réduit la taille, mais on ne s'arrête jamais sur la taille
                 state.currentFontSize = Math.max(
                     CONFIG.minFontSize,
                     Math.round(state.currentFontSize * CONFIG.sizeDecreaseFactor)
                 );
             } else {
                 state.errorsInRow++;
+
+                // 🔼 on augmente un peu la taille après erreur
                 state.currentFontSize = Math.min(
                     CONFIG.maxFontSize,
                     Math.round(state.currentFontSize * CONFIG.sizeIncreaseFactor)
                 );
 
+                // 🔴 seule condition d'arrêt : 3 erreurs consécutives
                 if (state.errorsInRow >= CONFIG.maxErrorsInRow) {
                     endTest();
                     return;
