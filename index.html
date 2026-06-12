@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test d'Acuité Flashée - Avec Calibration de Distance</title>
+    <title>Test d'Acuité Flashée - Version Adaptative</title>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         body {
@@ -95,16 +95,28 @@
             margin: 10px 0;
             color: #ccc;
         }
+        #sizeInfo {
+            font-size: 18px;
+            margin: 10px 0;
+            color: #ffeb3b;
+        }
+        #errorsInfo {
+            font-size: 18px;
+            margin: 10px 0;
+            color: #f44336;
+        }
     </style>
 </head>
 <body>
     <div id="testContainer">
-        <h1>Test d'Acuité Visuelle Flashée</h1>
+        <h1>Test d'Acuité Visuelle Flashée - Version Adaptative</h1>
         <p>Placez votre visage à une distance confortable de la caméra (environ 50 cm).</p>
 
         <button id="startButton">DÉMARRER LE TEST</button>
 
         <div id="distanceInfo">Distance estimée : -- cm</div>
+        <div id="sizeInfo">Taille actuelle : -- px</div>
+        <div id="errorsInfo">Erreurs consécutives : 0</div>
 
         <div id="videoContainer">
             <video id="video" autoplay muted></video>
@@ -125,7 +137,8 @@
         const FLASH_DURATION = 60; // ms
         const MIN_FONT_SIZE = 20; // Taille minimale des lettres (px)
         const MAX_FONT_SIZE = 400; // Taille maximale des lettres (px)
-        const TARGET_ACUITY = 1.0; // Acuité cible (1.0 = 20/20)
+        const SIZE_ADJUSTMENT = 0.9; // Réduction de taille après bonne réponse (90% de la taille actuelle)
+        const SIZE_INCREASE = 1.1; // Augmentation de taille après mauvaise réponse (110% de la taille actuelle)
         const FACE_REAL_WIDTH = 15; // Largeur réelle moyenne d'un visage (cm)
         const EYE_DISTANCE = 6.5; // Distance moyenne entre les yeux (cm)
 
@@ -135,9 +148,11 @@
         let validationButtons;
         let prompt;
         let distanceInfo;
+        let sizeInfo;
+        let errorsInfo;
         let resultsDiv;
         let startButton;
-        let currentFontSize = MAX_FONT_SIZE;
+        let currentFontSize = 150; // Taille de départ (px)
         let errorsInRow = 0;
         let currentLetter = '';
         let isTestRunning = false;
@@ -154,6 +169,8 @@
             validationButtons = document.getElementById('validationButtons');
             prompt = document.getElementById('prompt');
             distanceInfo = document.getElementById('distanceInfo');
+            sizeInfo = document.getElementById('sizeInfo');
+            errorsInfo = document.getElementById('errorsInfo');
             resultsDiv = document.getElementById('results');
             startButton = document.getElementById('startButton');
 
@@ -179,6 +196,14 @@
             startButton.disabled = true;
             prompt.textContent = "Calibration de la distance...";
 
+            // Réinitialiser les variables
+            currentFontSize = 150;
+            errorsInRow = 0;
+            resultsDiv.innerHTML = '';
+
+            // Mettre à jour l'affichage
+            updateInfoDisplays();
+
             // Démarrer la caméra
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -200,6 +225,7 @@
             } catch (err) {
                 console.error("Erreur accès caméra:", err);
                 prompt.textContent = "Erreur: Accès caméra refusé";
+                startButton.disabled = false;
             }
         }
 
@@ -214,7 +240,7 @@
 
                     // Adapter la taille des lettres en fonction de la distance
                     currentFontSize = calculateOptimalFontSize(distance);
-                    letterDisplay.style.fontSize = `${currentFontSize}px`;
+                    updateInfoDisplays();
                 }
             }, 500);
 
@@ -251,8 +277,6 @@
             );
 
             // Estimer la distance en cm
-            // Formule : distance = (taille_réelle / taille_pixels) * taille_écran
-            // On utilise la distance moyenne entre les yeux (6.5 cm)
             const estimatedDistance = (EYE_DISTANCE * video.videoWidth) / (eyeDistancePixels * video.offsetWidth);
 
             return Math.max(20, Math.min(100, estimatedDistance)); // Limiter entre 20 et 100 cm
@@ -262,9 +286,15 @@
         function calculateOptimalFontSize(distanceCm) {
             // Formule : taille_px = (distance_cm * facteur) / acuité
             // Le facteur 0.0145 correspond à l'angle visuel minimal pour 20/20 vision
-            const heightCm = (distanceCm * 0.0145) / TARGET_ACUITY;
+            const heightCm = (distanceCm * 0.0145) / 1.0; // Acuité cible 1.0 (20/20)
             const heightPx = (heightCm / 2.54) * 96; // 96 DPI (résolution standard)
             return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(heightPx)));
+        }
+
+        // Mettre à jour les affichages d'information
+        function updateInfoDisplays() {
+            sizeInfo.textContent = `Taille actuelle : ${currentFontSize} px`;
+            errorsInfo.textContent = `Erreurs consécutives : ${errorsInRow}`;
         }
 
         // Afficher la prochaine lettre
@@ -275,6 +305,7 @@
             currentLetter = letters[Math.floor(Math.random() * letters.length)];
             letterDisplay.textContent = currentLetter;
             letterDisplay.style.opacity = '1';
+            letterDisplay.style.fontSize = `${currentFontSize}px`;
 
             // Masquer après 60ms
             setTimeout(() => {
@@ -309,6 +340,10 @@
                 letterDisplay.style.color = '#4CAF50';
                 letterDisplay.textContent = '✓';
                 errorsInRow = 0;
+
+                // Réduire la taille pour la prochaine lettre
+                currentFontSize = Math.max(MIN_FONT_SIZE, Math.round(currentFontSize * SIZE_ADJUSTMENT));
+                console.log(`Bonne réponse! Taille réduite à ${currentFontSize}px`);
             } else {
                 // Mauvaise réponse
                 letterDisplay.style.color = '#F44336';
@@ -320,12 +355,19 @@
                     endTest();
                     return;
                 }
+
+                // Augmenter la taille pour la prochaine lettre
+                currentFontSize = Math.min(MAX_FONT_SIZE, Math.round(currentFontSize * SIZE_INCREASE));
+                console.log(`Mauvaise réponse! Taille augmentée à ${currentFontSize}px`);
             }
 
-            // Attendre 2 secondes avant la prochaine lettre
+            // Mettre à jour les affichages
+            updateInfoDisplays();
+
+            // Attendre 1 seconde avant la prochaine lettre
             setTimeout(() => {
                 showNextLetter();
-            }, 2000);
+            }, 1000);
         }
 
         // Arrêter le test
@@ -343,9 +385,9 @@
             resultsDiv.innerHTML = `
                 <h2>Résultats</h2>
                 <p>Distance utilisée : ${Math.round(distance)} cm</p>
-                <p>Taille minimale des lettres : ${currentFontSize} px</p>
+                <p>Taille minimale atteinte : ${currentFontSize} px</p>
                 <p>Acuité visuelle estimée : ${acuityScore.toFixed(1)}/1.0</p>
-                <p>Performance : ${Math.round((1 - errorsInRow/letters.length) * 100)}%</p>
+                <p>Erreurs consécutives : ${errorsInRow}</p>
             `;
 
             // Évaluation de l'acuité
@@ -356,6 +398,9 @@
             else evaluation = "Faible";
 
             resultsDiv.innerHTML += `<p>Évaluation : ${evaluation}</p>`;
+
+            // Réactiver le bouton de démarrage
+            startButton.disabled = false;
         }
 
         // Calculer le score d'acuité
