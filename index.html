@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test d'Acuité Flashée - Version Adaptative</title>
+    <title>Test d'Acuité Flashée - Avec Calibration de Distance</title>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         body {
@@ -20,36 +20,17 @@
         }
         #testContainer {
             width: 100%;
-            max-width: 1000px;
+            max-width: 800px;
             padding: 20px;
         }
-        #videoContainer {
-            position: relative;
-            margin-bottom: 20px;
-            border: 2px solid #4ecdc4;
-            border-radius: 10px;
-            overflow: hidden;
-            width: 100%;
-            max-width: 600px;
-            aspect-ratio: 4/3;
-        }
-        #video {
-            width: 100%;
-            transform: scaleX(-1); /* Miroir */
-        }
         #letterDisplay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            font-size: 200px;
             color: white;
-            text-shadow: 0 0 30px #fff;
+            text-shadow: 0 0 20px white;
             opacity: 0;
             transition: opacity 0.1s linear;
-            pointer-events: none;
+            margin: 20px 0;
             font-weight: bold;
-            text-align: center;
-            z-index: 10;
         }
         #prompt {
             font-size: 24px;
@@ -90,38 +71,42 @@
             cursor: pointer;
             margin-bottom: 20px;
         }
-        #distanceInfo {
-            font-size: 16px;
-            margin: 10px 0;
-            color: #ccc;
-        }
-        #sizeInfo {
+        #infoDisplay {
             font-size: 18px;
             margin: 10px 0;
             color: #ffeb3b;
         }
+        #distanceInfo {
+            color: #4CAF50;
+        }
+        #sizeInfo {
+            color: #2196F3;
+        }
         #errorsInfo {
-            font-size: 18px;
-            margin: 10px 0;
             color: #f44336;
+        }
+        #loading {
+            font-size: 24px;
+            margin: 20px 0;
         }
     </style>
 </head>
 <body>
     <div id="testContainer">
-        <h1>Test d'Acuité Visuelle Flashée - Version Adaptative</h1>
-        <p>Placez votre visage à une distance confortable de la caméra (environ 50 cm).</p>
+        <h1>Test d'Acuité Visuelle Flashée</h1>
+        <p>Calibration automatique de distance + ajustement dynamique</p>
 
-        <button id="startButton">DÉMARRER LE TEST</button>
+        <button id="startButton">DÉMARRER LE TEST (autorisez la caméra)</button>
 
-        <div id="distanceInfo">Distance estimée : -- cm</div>
-        <div id="sizeInfo">Taille actuelle : -- px</div>
-        <div id="errorsInfo">Erreurs consécutives : 0</div>
+        <div id="loading" style="display: none;">Chargement de la détection faciale...</div>
 
-        <div id="videoContainer">
-            <video id="video" autoplay muted></video>
-            <div id="letterDisplay"></div>
+        <div id="infoDisplay">
+            <div id="distanceInfo">Distance : -- cm</div>
+            <div id="sizeInfo">Taille : -- px</div>
+            <div id="errorsInfo">Erreurs : 0</div>
         </div>
+
+        <div id="letterDisplay"></div>
 
         <div id="prompt">Préparez-vous...</div>
 
@@ -137,164 +122,149 @@
         const FLASH_DURATION = 60; // ms
         const MIN_FONT_SIZE = 20; // Taille minimale des lettres (px)
         const MAX_FONT_SIZE = 400; // Taille maximale des lettres (px)
-        const SIZE_ADJUSTMENT = 0.9; // Réduction de taille après bonne réponse (90% de la taille actuelle)
-        const SIZE_INCREASE = 1.1; // Augmentation de taille après mauvaise réponse (110% de la taille actuelle)
-        const FACE_REAL_WIDTH = 15; // Largeur réelle moyenne d'un visage (cm)
-        const EYE_DISTANCE = 6.5; // Distance moyenne entre les yeux (cm)
+        const TARGET_DISTANCE = 50; // Distance cible en cm (pour calibration)
+        const SIZE_ADJUSTMENT = 0.9; // Réduction de taille après bonne réponse
+        const SIZE_INCREASE = 1.1; // Augmentation de taille après mauvaise réponse
+        const REFERENCE_SIZE = 150; // Taille de référence à 50cm (px)
 
         // Variables globales
-        let video;
-        let letterDisplay;
-        let validationButtons;
-        let prompt;
-        let distanceInfo;
-        let sizeInfo;
-        let errorsInfo;
-        let resultsDiv;
-        let startButton;
-        let currentFontSize = 150; // Taille de départ (px)
+        let currentFontSize = REFERENCE_SIZE;
         let errorsInRow = 0;
         let currentLetter = '';
         let isTestRunning = false;
-        let faceDetector;
-        let distance = 50; // Distance estimée par défaut (cm)
+        let faceMatcher;
+        let videoWidth = 640, videoHeight = 480;
+        let distance = 0;
 
         // Lettres disponibles
         const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'H', 'K', 'L', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'X', 'Z'];
 
+        // Éléments DOM
+        let startButton, letterDisplay, prompt, validationButtons, distanceInfo, sizeInfo, errorsInfo, resultsDiv, loadingDiv;
+
         // Initialisation
-        document.addEventListener('DOMContentLoaded', async () => {
-            video = document.getElementById('video');
+        document.addEventListener('DOMContentLoaded', () => {
+            startButton = document.getElementById('startButton');
             letterDisplay = document.getElementById('letterDisplay');
-            validationButtons = document.getElementById('validationButtons');
             prompt = document.getElementById('prompt');
+            validationButtons = document.getElementById('validationButtons');
             distanceInfo = document.getElementById('distanceInfo');
             sizeInfo = document.getElementById('sizeInfo');
             errorsInfo = document.getElementById('errorsInfo');
             resultsDiv = document.getElementById('results');
-            startButton = document.getElementById('startButton');
-
-            // Charger les modèles de détection de visage
-            await loadFaceModels();
+            loadingDiv = document.getElementById('loading');
 
             // Configurer le bouton de démarrage
-            startButton.addEventListener('click', startTest);
+            startButton.addEventListener('click', startCalibration);
 
             // Initialiser les boutons de validation
             setupValidationButtons();
         });
 
-        // Charger les modèles de face-api.js
-        async function loadFaceModels() {
-            await faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
-            await faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
-            console.log("Modèles de détection de visage chargés");
-        }
+        // Démarrer la calibration
+        async function startCalibration() {
+            startButton.style.display = 'none';
+            loadingDiv.style.display = 'block';
+            prompt.textContent = "Chargement de la détection faciale...";
 
-        // Démarrer le test
-        async function startTest() {
-            startButton.disabled = true;
-            prompt.textContent = "Calibration de la distance...";
-
-            // Réinitialiser les variables
-            currentFontSize = 150;
-            errorsInRow = 0;
-            resultsDiv.innerHTML = '';
-
-            // Mettre à jour l'affichage
-            updateInfoDisplays();
-
-            // Démarrer la caméra
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = stream;
+                // Charger les modèles de face-api
+                await loadModels();
+                await setupCamera();
 
-                // Attendre que la caméra soit prête
-                await new Promise(resolve => video.onloadedmetadata = resolve);
+                // Démarrer la détection
+                detectFaces();
+                loadingDiv.style.display = 'none';
+                prompt.textContent = "Placez votre visage à 50 cm de la caméra...";
 
-                // Démarrer la calibration de distance
-                startDistanceCalibration();
-
-                // Après 3 secondes, lancer le test
-                setTimeout(() => {
-                    isTestRunning = true;
-                    prompt.textContent = "Test en cours...";
-                    showNextLetter();
-                }, 3000);
-
-            } catch (err) {
-                console.error("Erreur accès caméra:", err);
-                prompt.textContent = "Erreur: Accès caméra refusé";
-                startButton.disabled = false;
+                // Après 5 secondes, démarrer le test
+                setTimeout(startTest, 5000);
+            } catch (error) {
+                console.error("Erreur:", error);
+                prompt.textContent = "Erreur de chargement. Veuillez réessayer.";
+                startButton.style.display = 'block';
+                loadingDiv.style.display = 'none';
             }
         }
 
-        // Démarrer la calibration de distance
-        function startDistanceCalibration() {
-            // Mettre à jour la distance toutes les 500ms
-            const interval = setInterval(async () => {
-                const detection = await detectFace();
-                if (detection) {
-                    distance = calculateDistance(detection);
-                    distanceInfo.textContent = `Distance estimée : ${Math.round(distance)} cm`;
+        // Charger les modèles de face-api
+        async function loadModels() {
+            await faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+            await faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+            await faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+        }
 
-                    // Adapter la taille des lettres en fonction de la distance
-                    currentFontSize = calculateOptimalFontSize(distance);
-                    updateInfoDisplays();
+        // Configurer la caméra
+        async function setupCamera() {
+            const video = document.createElement('video');
+            video.width = videoWidth;
+            video.height = videoHeight;
+            video.style.display = 'none';
+
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+
+            // Attendre que la vidéo soit prête
+            await new Promise((resolve) => {
+                video.onloadedmetadata = () => {
+                    resolve();
+                };
+            });
+
+            document.body.appendChild(video);
+        }
+
+        // Détecter les visages en continu
+        function detectFaces() {
+            const video = document.querySelector('video');
+            if (!video) return;
+
+            setInterval(async () => {
+                if (!video.paused && !video.ended) {
+                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                        .withFaceLandmarks();
+
+                    if (detections.length > 0) {
+                        // Calculer la distance (simplifié)
+                        const faceWidth = detections[0].box.width;
+                        const faceHeight = detections[0].box.height;
+
+                        // Estimation de la distance (formule empirique)
+                        // Plus le visage est petit, plus on est loin
+                        distance = Math.round((REFERENCE_SIZE * 50) / faceWidth);
+
+                        // Mettre à jour l'affichage
+                        distanceInfo.textContent = `Distance : ${distance} cm`;
+
+                        // Calculer la taille adaptée
+                        const sizeRatio = distance / TARGET_DISTANCE;
+                        currentFontSize = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(REFERENCE_SIZE * sizeRatio)));
+
+                        sizeInfo.textContent = `Taille : ${currentFontSize} px`;
+                    }
                 }
             }, 500);
-
-            // Arrêter la calibration après 10 secondes
-            setTimeout(() => {
-                clearInterval(interval);
-                if (isTestRunning) {
-                    prompt.textContent = "Test démarré!";
-                }
-            }, 10000);
         }
 
-        // Détecter le visage
-        async function detectFace() {
-            if (!video.videoWidth) return null;
+        // Démarrer le test
+        function startTest() {
+            prompt.textContent = "Test en cours...";
 
-            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-                .withFaceLandmarks();
+            // Réinitialiser les variables
+            errorsInRow = 0;
+            updateInfoDisplays();
 
-            return detections[0] || null;
-        }
+            // Réinitialiser l'affichage
+            resultsDiv.innerHTML = '';
+            letterDisplay.style.opacity = '0';
 
-        // Calculer la distance caméra/visage
-        function calculateDistance(detection) {
-            // Utiliser la distance entre les yeux
-            const landmarks = detection.landmarks;
-            const leftEye = landmarks.getLeftEye();
-            const rightEye = landmarks.getRightEye();
-
-            // Calculer la distance en pixels entre les yeux
-            const eyeDistancePixels = Math.sqrt(
-                Math.pow(rightEye[0].x - leftEye[0].x, 2) +
-                Math.pow(rightEye[0].y - leftEye[0].y, 2)
-            );
-
-            // Estimer la distance en cm
-            const estimatedDistance = (EYE_DISTANCE * video.videoWidth) / (eyeDistancePixels * video.offsetWidth);
-
-            return Math.max(20, Math.min(100, estimatedDistance)); // Limiter entre 20 et 100 cm
-        }
-
-        // Calculer la taille optimale des lettres en fonction de la distance
-        function calculateOptimalFontSize(distanceCm) {
-            // Formule : taille_px = (distance_cm * facteur) / acuité
-            // Le facteur 0.0145 correspond à l'angle visuel minimal pour 20/20 vision
-            const heightCm = (distanceCm * 0.0145) / 1.0; // Acuité cible 1.0 (20/20)
-            const heightPx = (heightCm / 2.54) * 96; // 96 DPI (résolution standard)
-            return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(heightPx)));
+            isTestRunning = true;
+            showNextLetter();
         }
 
         // Mettre à jour les affichages d'information
         function updateInfoDisplays() {
-            sizeInfo.textContent = `Taille actuelle : ${currentFontSize} px`;
-            errorsInfo.textContent = `Erreurs consécutives : ${errorsInRow}`;
+            errorsInfo.textContent = `Erreurs : ${errorsInRow}`;
         }
 
         // Afficher la prochaine lettre
@@ -303,9 +273,11 @@
 
             // Générer une lettre aléatoire
             currentLetter = letters[Math.floor(Math.random() * letters.length)];
+
+            // Afficher la lettre
             letterDisplay.textContent = currentLetter;
-            letterDisplay.style.opacity = '1';
             letterDisplay.style.fontSize = `${currentFontSize}px`;
+            letterDisplay.style.opacity = '1';
 
             // Masquer après 60ms
             setTimeout(() => {
@@ -313,9 +285,11 @@
 
                 // Afficher les boutons de validation après le flash
                 setTimeout(() => {
-                    validationButtons.style.display = 'flex';
-                    prompt.textContent = "Quelle lettre avez-vous vue ?";
-                }, 10); // Petit délai pour éviter les clics accidentels
+                    if (isTestRunning) {
+                        validationButtons.style.display = 'flex';
+                        prompt.textContent = "Quelle lettre avez-vous vue ?";
+                    }
+                }, 10);
             }, FLASH_DURATION);
         }
 
@@ -362,10 +336,12 @@
             }
 
             // Mettre à jour les affichages
-            updateInfoDisplays();
+            sizeInfo.textContent = `Taille : ${currentFontSize} px`;
+            errorsInfo.textContent = `Erreurs : ${errorsInRow}`;
 
             // Attendre 1 seconde avant la prochaine lettre
             setTimeout(() => {
+                letterDisplay.style.color = 'white';
                 showNextLetter();
             }, 1000);
         }
@@ -375,18 +351,13 @@
             isTestRunning = false;
             prompt.textContent = "TEST TERMINÉ";
 
-            // Arrêter la caméra
-            if (video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
-            }
-
             // Afficher les résultats
             const acuityScore = calculateAcuityScore();
             resultsDiv.innerHTML = `
                 <h2>Résultats</h2>
-                <p>Distance utilisée : ${Math.round(distance)} cm</p>
+                <p>Distance utilisée : ${distance} cm</p>
                 <p>Taille minimale atteinte : ${currentFontSize} px</p>
-                <p>Acuité visuelle estimée : ${acuityScore.toFixed(1)}/1.0</p>
+                <p>Acuité visuelle estimée : ${acuityScore.toFixed(2)}/1.0</p>
                 <p>Erreurs consécutives : ${errorsInRow}</p>
             `;
 
@@ -399,15 +370,16 @@
 
             resultsDiv.innerHTML += `<p>Évaluation : ${evaluation}</p>`;
 
-            // Réactiver le bouton de démarrage
-            startButton.disabled = false;
+            // Arrêter la caméra
+            const video = document.querySelector('video');
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
         }
 
         // Calculer le score d'acuité
         function calculateAcuityScore() {
-            // Plus la taille minimale est petite, meilleure est l'acuité
-            // On normalise par rapport à la taille maximale
-            return Math.min(1.0, MAX_FONT_SIZE / currentFontSize);
+            return Math.min(1.0, REFERENCE_SIZE / currentFontSize);
         }
     </script>
 </body>
