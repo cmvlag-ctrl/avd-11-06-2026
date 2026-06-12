@@ -359,6 +359,24 @@
         const letters = "C D F H L N O P T U V Z".split(" ");
 
         // =============================================
+        // FONCTION POUR METTRE À JOUR LA TAILLE DE LA LETTRE
+        // =============================================
+        function updateLetterSize() {
+            // Utiliser l'acuité calibrée si disponible, sinon utiliser l'acuité standard
+            const currentAcuityValue = acuityCalibrated !== null ? acuityCalibrated : acuity;
+
+            // Calculer la taille de la lettre en pixels
+            const sizePx = calculateSize(distance, currentAcuityValue);
+
+            // Appliquer la taille à la lettre
+            letterEl.style.fontSize = sizePx + 'px';
+
+            // Mettre à jour les statistiques affichées
+            document.getElementById('statusSize').innerText = `Lettre: ${sizePx}px`;
+            document.getElementById('currentAcuity').innerText = currentAcuityValue.toFixed(2);
+        }
+
+        // =============================================
         // FONCTIONS DE CALIBRATION PHYSIQUE
         // =============================================
         function toggleCalib() {
@@ -382,8 +400,7 @@
             screenDPI = baseDPI * calibrationFactor;
 
             document.getElementById('calibFeedback').innerText = "✓ OK";
-            updateLetterSize();
-            updateStats();
+            updateLetterSize(); // Recalculer la taille après calibration
             setTimeout(() => document.getElementById('calibFeedback').innerText = '', 3000);
         }
 
@@ -408,6 +425,7 @@
             document.getElementById('startAcuityBtn').textContent = "Lancer Test";
 
             if (panel.style.display === 'none') {
+                // Réinitialiser l'état
                 isCalibratingAcuity = false;
                 letterEl.style.opacity = '0';
             }
@@ -419,28 +437,35 @@
             isCalibratingAcuity = true;
             document.getElementById('startAcuityBtn').textContent = "Nouveau Test";
 
+            // Calculer la taille de la lettre pour le test
             const sizePx = calculateSize(50, parseFloat(document.getElementById('acuityCalibSlider').value));
             letterEl.style.fontSize = sizePx + 'px';
             currentCalibLetterSize = sizePx;
             currentCalibLetterCm = (sizePx / screenDPI) * 2.54;
 
+            // Afficher la lettre
             const randomLetter = letters[Math.floor(Math.random() * letters.length)];
             letterEl.innerText = randomLetter;
             letterEl.style.opacity = '1';
 
+            // Masquer après 60ms
             setTimeout(() => {
                 letterEl.style.opacity = '0';
                 isCalibratingAcuity = false;
 
-                const desiredSizeMm = 1.5;
-                const actualSizeMm = currentCalibLetterCm * 10;
+                // Calculer l'acuité basée sur la taille affichée
+                const desiredSizeMm = 1.5; // Taille souhaitée pour une acuité normale
+                const actualSizeMm = currentCalibLetterCm * 10; // Conversion cm → mm
                 acuityCalibrated = desiredSizeMm / actualSizeMm;
 
+                // Afficher le résultat
                 document.getElementById('acuityCalibResult').innerText =
                     `Acuité calibrée: ${acuityCalibrated.toFixed(2)}`;
 
+                // Mettre à jour l'affichage
                 document.getElementById('acuitySizeDisplay').innerText = sizePx + 'px';
                 document.getElementById('acuityCmDisplay').innerText = (currentCalibLetterCm * 10).toFixed(1);
+
             }, 60);
         }
 
@@ -453,10 +478,12 @@
 
             localStorage.setItem('avd_acuity_calib_v1', acuityCalibrated);
             document.getElementById('acuityCalibPanel').style.display = 'none';
+
             document.getElementById('acuityFeedback').innerText = "✓ Acuité sauvegardée";
             setTimeout(() => document.getElementById('acuityFeedback').innerText = '', 3000);
+
+            // Mettre à jour l'affichage
             updateLetterSize();
-            updateStats();
         }
 
         function loadAcuityCalib() {
@@ -464,54 +491,41 @@
             if (saved) {
                 acuityCalibrated = parseFloat(saved);
                 document.getElementById('currentAcuity').innerText = acuityCalibrated.toFixed(2);
+                updateLetterSize(); // Appliquer la taille calibrée
             }
         }
 
         // =============================================
-        // FONCTIONS DE PARAMÈTRES - MODIFIÉE
+        // FONCTIONS DE PARAMÈTRES - CORRIGÉE
         // =============================================
         function updateParams() {
             acuity = parseFloat(document.getElementById('acuity').value);
             document.getElementById('valAcuity').innerText = acuity.toFixed(1);
-            updateLetterSize();
-            updateStats();
+            updateLetterSize(); // Recalculer et appliquer la taille de la lettre
         }
 
         // =============================================
-        // NOUVELLE FONCTION POUR METTRE À JOUR LA TAILLE DE LA LETTRE
-        // =============================================
-        function updateLetterSize() {
-            const currentAcuityValue = acuityCalibrated !== null ? acuityCalibrated : acuity;
-            letterEl.style.fontSize = calculateSize(distance, currentAcuityValue) + 'px';
-        }
-
-        // =============================================
-        // FONCTIONS DE STATISTIQUES - MODIFIÉE
+        // FONCTIONS DE STATISTIQUES
         // =============================================
         function updateStats() {
             document.getElementById('statusSpeed').innerText = `Vit: ${Math.round(speed)}`;
             document.getElementById('statusDist').innerText = `Dist: ~${Math.round(distance)} cm`;
-
-            const currentAcuityValue = acuityCalibrated !== null ? acuityCalibrated : acuity;
-            let currentSize = calculateSize(distance, currentAcuityValue);
-            document.getElementById('statusSize').innerText = `Lettre: ${currentSize}px`;
-            document.getElementById('currentAcuity').innerText = currentAcuityValue.toFixed(2);
-
-            let pct = Math.min(100, (speed / 250) * 100);
-            document.getElementById('speedBar').style.width = `${pct}%`;
+            // La taille de la lettre est gérée par updateLetterSize()
         }
 
         // =============================================
         // CALCUL DE LA TAILLE DES LETTRES
         // =============================================
         function calculateSize(distCm, acuityDecimal) {
+            // Taille de référence: 1.5mm à 40cm avec acuity=1.0
+            // Donc: heightCm = (distCm * 0.00375) / acuityDecimal
             let heightCm = (distCm * 0.00375) / acuityDecimal;
             let heightPx = (heightCm / 2.54) * screenDPI;
             return Math.max(20, Math.round(heightPx));
         }
 
         // =============================================
-        // MACHINE D'ÉTAT - MODIFIÉE
+        // MACHINE D'ÉTAT - CORRIGÉE
         // =============================================
         function handleState(currentSpeed, now) {
             const minSpeedTrigger = 150;
@@ -525,6 +539,7 @@
                     const randomLetter = letters[Math.floor(Math.random() * letters.length)];
                     letterEl.innerText = randomLetter;
 
+                    // Utiliser l'acuité calibrée si disponible
                     const currentAcuityValue = acuityCalibrated !== null ? acuityCalibrated : acuity;
                     letterEl.style.fontSize = calculateSize(distance, currentAcuityValue) + 'px';
 
@@ -538,7 +553,7 @@
         }
 
         // =============================================
-        // BOUCLE PRINCIPALE
+        // BOUCLE PRINCIPALE - CORRIGÉE
         // =============================================
         async function loop() {
             if (!model) return;
@@ -596,7 +611,7 @@
         }
 
         // =============================================
-        // DÉMARRAGE DE L'APPLICATION
+        // DÉMARRAGE DE L'APPLICATION - CORRIGÉ
         // =============================================
         async function startApp() {
             startBtn.disabled = true;
@@ -626,7 +641,7 @@
                     try {
                         model = await blazeface.load();
                         document.getElementById('statusInit').innerText = "Prêt !";
-                        updateParams();
+                        updateLetterSize(); // Initialiser la taille de la lettre au démarrage
                         loop();
                     } catch (aiError) {
                         document.getElementById('statusInit').innerText = "Erreur IA";
