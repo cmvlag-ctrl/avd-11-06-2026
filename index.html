@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test d'Acuité Flashée - Version Minimaliste</title>
+    <title>Test d'Acuité Flashée</title>
     <style>
         body {
             margin: 0;
@@ -27,9 +27,10 @@
             color: white;
             text-shadow: 0 0 20px white;
             opacity: 0;
-            transition: opacity 0.1s linear;
+            transition: opacity 0.05s linear;
             margin: 20px 0;
             font-weight: bold;
+            min-height: 220px;
         }
         #prompt {
             font-size: 24px;
@@ -46,231 +47,367 @@
         .letterButton {
             background: #4ecdc4;
             border: none;
-            padding: 15px 20px;
-            font-size: 24px;
+            padding: 10px 16px;
+            font-size: 20px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: bold;
-            min-width: 60px;
+            min-width: 50px;
         }
-        .letterButton:hover {
+        .letterButton:hover:not(:disabled) {
             background: #45b7b8;
+        }
+        .letterButton:disabled {
+            opacity: 0.4;
+            cursor: default;
         }
         #results {
             margin-top: 20px;
-            font-size: 20px;
-            min-height: 100px;
+            font-size: 18px;
+            min-height: 120px;
         }
-        #startButton {
-            background: #4CAF50;
-            border: none;
-            padding: 15px 30px;
-            font-size: 20px;
-            border-radius: 8px;
-            cursor: pointer;
+        #controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
             margin-bottom: 20px;
         }
-        #sizeInfo {
+        #startButton, #stopButton {
+            background: #4CAF50;
+            border: none;
+            padding: 10px 20px;
             font-size: 18px;
-            margin: 10px 0;
-            color: #ffeb3b;
+            border-radius: 8px;
+            cursor: pointer;
         }
-        #errorsInfo {
-            font-size: 18px;
-            margin: 10px 0;
-            color: #f44336;
+        #stopButton {
+            background: #f44336;
+        }
+        #sizeInfo, #errorsInfo, #trialInfo, #timerInfo {
+            font-size: 16px;
+            margin: 5px 0;
+        }
+        #sizeInfo { color: #ffeb3b; }
+        #errorsInfo { color: #f44336; }
+        #timerInfo { color: #03a9f4; }
+
+        #configPanel {
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        #configPanel label {
+            margin: 0 10px;
+        }
+        #configPanel input {
+            width: 60px;
         }
     </style>
 </head>
 <body>
-    <div id="testContainer">
-        <h1>Test d'Acuité Visuelle Flashée</h1>
-        <p>Test minimaliste : lettres flashées en blanc sur fond noir</p>
+<div id="testContainer">
+    <h1>Test d'Acuité Visuelle Flashée</h1>
+    <p>Test minimaliste : lettres flashées en blanc sur fond noir (usage indicatif, non médical)</p>
 
-        <button id="startButton">DÉMARRER LE TEST</button>
-
-        <div id="sizeInfo">Taille actuelle : 200 px</div>
-        <div id="errorsInfo">Erreurs consécutives : 0</div>
-
-        <div id="letterDisplay"></div>
-
-        <div id="prompt">Préparez-vous...</div>
-
-        <div id="validationButtons" style="display: none;">
-            <!-- Boutons générés dynamiquement -->
-        </div>
-
-        <div id="results"></div>
+    <div id="configPanel">
+        <label>Durée du flash (ms) :
+            <input type="number" id="flashDurationInput" value="60" min="10" max="500">
+        </label>
+        <label>Taille initiale (px) :
+            <input type="number" id="startSizeInput" value="200" min="20" max="400">
+        </label>
+        <label>Erreurs consécutives max :
+            <input type="number" id="maxErrorsInput" value="3" min="1" max="10">
+        </label>
     </div>
 
-    <script>
-        // Configuration
-        const FLASH_DURATION = 60; // ms
-        const MIN_FONT_SIZE = 20; // Taille minimale des lettres (px)
-        const MAX_FONT_SIZE = 400; // Taille maximale des lettres (px)
-        const SIZE_ADJUSTMENT = 0.9; // Réduction de taille après bonne réponse
-        const SIZE_INCREASE = 1.1; // Augmentation de taille après mauvaise réponse
+    <div id="controls">
+        <button id="startButton">DÉMARRER</button>
+        <button id="stopButton" disabled>ARRÊTER</button>
+    </div>
 
-        // Variables globales
-        let currentFontSize = 200; // Taille de départ (px)
-        let errorsInRow = 0;
-        let currentLetter = '';
-        let isTestRunning = false;
-        let startButton, letterDisplay, prompt, validationButtons, sizeInfo, errorsInfo, resultsDiv;
+    <div id="sizeInfo">Taille actuelle : 200 px</div>
+    <div id="errorsInfo">Erreurs consécutives : 0</div>
+    <div id="trialInfo">Essais : 0</div>
+    <div id="timerInfo">Temps : 0 s</div>
 
-        // Lettres disponibles
-        const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'H', 'K', 'L', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'X', 'Z'];
+    <div id="letterDisplay"></div>
 
-        // Initialisation
-        document.addEventListener('DOMContentLoaded', () => {
-            startButton = document.getElementById('startButton');
-            letterDisplay = document.getElementById('letterDisplay');
-            prompt = document.getElementById('prompt');
-            validationButtons = document.getElementById('validationButtons');
-            sizeInfo = document.getElementById('sizeInfo');
-            errorsInfo = document.getElementById('errorsInfo');
-            resultsDiv = document.getElementById('results');
+    <div id="prompt">Préparez-vous...</div>
 
-            // Configurer le bouton de démarrage
-            startButton.addEventListener('click', startTest);
+    <div id="validationButtons" style="display: none;">
+        <!-- Boutons générés dynamiquement -->
+    </div>
 
-            // Initialiser les boutons de validation
-            setupValidationButtons();
-        });
+    <div id="results"></div>
+</div>
 
-        // Démarrer le test
-        function startTest() {
-            startButton.disabled = true;
-            prompt.textContent = "Test en cours...";
+<script>
+    const CONFIG = {
+        minFontSize: 20,
+        maxFontSize: 400,
+        sizeDecreaseFactor: 0.9,
+        sizeIncreaseFactor: 1.1
+    };
 
-            // Réinitialiser les variables
-            currentFontSize = 200;
-            errorsInRow = 0;
-            updateInfoDisplays();
+    const letters = ['A','B','C','D','E','F','H','K','L','M','N','O','P','R','S','T','U','V','X','Z'];
 
-            // Réinitialiser l'affichage
-            resultsDiv.innerHTML = '';
+    const state = {
+        flashDuration: 60,
+        startFontSize: 200,
+        maxErrorsInRow: 3,
+
+        currentFontSize: 200,
+        errorsInRow: 0,
+        totalTrials: 0,
+        correctAnswers: 0,
+        currentLetter: '',
+        isTestRunning: false,
+        startTime: null,
+        timerIntervalId: null,
+        timeouts: [],
+        trialsHistory: []
+    };
+
+    let startButton, stopButton, letterDisplay, prompt,
+        validationButtons, sizeInfo, errorsInfo, resultsDiv,
+        trialInfo, timerInfo,
+        flashDurationInput, startSizeInput, maxErrorsInput;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        startButton = document.getElementById('startButton');
+        stopButton = document.getElementById('stopButton');
+        letterDisplay = document.getElementById('letterDisplay');
+        prompt = document.getElementById('prompt');
+        validationButtons = document.getElementById('validationButtons');
+        sizeInfo = document.getElementById('sizeInfo');
+        errorsInfo = document.getElementById('errorsInfo');
+        resultsDiv = document.getElementById('results');
+        trialInfo = document.getElementById('trialInfo');
+        timerInfo = document.getElementById('timerInfo');
+
+        flashDurationInput = document.getElementById('flashDurationInput');
+        startSizeInput = document.getElementById('startSizeInput');
+        maxErrorsInput = document.getElementById('maxErrorsInput');
+
+        startButton.addEventListener('click', startTest);
+        stopButton.addEventListener('click', endTest);
+
+        setupValidationButtons();
+        updateInfoDisplays();
+    });
+
+    function readConfigFromInputs() {
+        state.flashDuration = Number(flashDurationInput.value) || 60;
+        state.startFontSize = Number(startSizeInput.value) || 200;
+        state.maxErrorsInRow = Number(maxErrorsInput.value) || 3;
+    }
+
+    function startTest() {
+        if (state.isTestRunning) return;
+
+        readConfigFromInputs();
+
+        startButton.disabled = true;
+        stopButton.disabled = false;
+        prompt.textContent = "Début dans 3 secondes...";
+        resultsDiv.innerHTML = '';
+
+        state.currentFontSize = state.startFontSize;
+        state.errorsInRow = 0;
+        state.totalTrials = 0;
+        state.correctAnswers = 0;
+        state.trialsHistory = [];
+        state.startTime = Date.now();
+        state.isTestRunning = true;
+
+        startTimer();
+        updateInfoDisplays();
+
+        // Petit compte à rebours avant le premier flash
+        let countdown = 3;
+        const countdownInterval = setInterval(() => {
+            if (!state.isTestRunning) {
+                clearInterval(countdownInterval);
+                return;
+            }
+            countdown--;
+            if (countdown > 0) {
+                prompt.textContent = `Début dans ${countdown} seconde${countdown > 1 ? 's' : ''}...`;
+            } else {
+                clearInterval(countdownInterval);
+                prompt.textContent = "Test en cours...";
+                showNextLetter();
+            }
+        }, 1000);
+    }
+
+    function endTest() {
+        if (!state.isTestRunning) return;
+
+        state.isTestRunning = false;
+        startButton.disabled = false;
+        stopButton.disabled = true;
+
+        stopTimer();
+        clearAllTimeouts();
+        validationButtons.style.display = 'none';
+        letterDisplay.style.opacity = '0';
+        prompt.textContent = "TEST TERMINÉ";
+
+        const acuityScore = calculateAcuityScore();
+        const accuracy = state.totalTrials > 0
+            ? (state.correctAnswers / state.totalTrials) * 100
+            : 0;
+        const elapsedSec = state.startTime
+            ? Math.round((Date.now() - state.startTime) / 1000)
+            : 0;
+
+        let evaluation = '';
+        if (acuityScore >= 0.8) evaluation = "Excellente (relative)";
+        else if (acuityScore >= 0.6) evaluation = "Bonne (relative)";
+        else if (acuityScore >= 0.4) evaluation = "Moyenne (relative)";
+        else evaluation = "Faible (relative)";
+
+        resultsDiv.innerHTML = `
+            <h2>Résultats</h2>
+            <p>Taille minimale atteinte (au dernier essai) : ${state.currentFontSize} px</p>
+            <p>Acuité visuelle relative : ${acuityScore.toFixed(2)}/1.00</p>
+            <p>Nombre total d'essais : ${state.totalTrials}</p>
+            <p>Pourcentage de bonnes réponses : ${accuracy.toFixed(1)} %</p>
+            <p>Durée du test : ${elapsedSec} s</p>
+            <p>Évaluation : ${evaluation}</p>
+            <p style="font-size:12px;opacity:0.7">
+                Ce test est un outil de démonstration et ne remplace pas un examen ophtalmologique.
+            </p>
+        `;
+    }
+
+    function showNextLetter() {
+        if (!state.isTestRunning) return;
+
+        state.currentLetter = letters[Math.floor(Math.random() * letters.length)];
+
+        letterDisplay.style.color = 'white';
+        letterDisplay.textContent = state.currentLetter;
+        letterDisplay.style.fontSize = `${state.currentFontSize}px`;
+        letterDisplay.style.opacity = '1';
+
+        disableValidationButtons(true);
+
+        const hideTimeout = setTimeout(() => {
             letterDisplay.style.opacity = '0';
 
-            isTestRunning = true;
-            showNextLetter();
-        }
+            const showButtonsTimeout = setTimeout(() => {
+                if (!state.isTestRunning) return;
+                validationButtons.style.display = 'flex';
+                prompt.textContent = "Quelle lettre avez-vous vue ?";
+                disableValidationButtons(false);
+            }, 20);
 
-        // Mettre à jour les affichages d'information
-        function updateInfoDisplays() {
-            sizeInfo.textContent = `Taille actuelle : ${currentFontSize} px`;
-            errorsInfo.textContent = `Erreurs consécutives : ${errorsInRow}`;
-        }
+            state.timeouts.push(showButtonsTimeout);
+        }, state.flashDuration);
 
-        // Afficher la prochaine lettre
-        function showNextLetter() {
-            if (!isTestRunning) return;
+        state.timeouts.push(hideTimeout);
+    }
 
-            // Générer une lettre aléatoire
-            currentLetter = letters[Math.floor(Math.random() * letters.length)];
+    function setupValidationButtons() {
+        validationButtons.innerHTML = '';
+        letters.forEach(letter => {
+            const button = document.createElement('button');
+            button.className = 'letterButton';
+            button.textContent = letter;
+            button.addEventListener('click', () => validateAnswer(letter));
+            validationButtons.appendChild(button);
+        });
+    }
 
-            // Afficher la lettre
-            letterDisplay.textContent = currentLetter;
-            letterDisplay.style.fontSize = `${currentFontSize}px`;
-            letterDisplay.style.opacity = '1';
+    function disableValidationButtons(disabled) {
+        const buttons = validationButtons.querySelectorAll('button');
+        buttons.forEach(btn => btn.disabled = disabled);
+    }
 
-            // Masquer après 60ms
-            setTimeout(() => {
-                letterDisplay.style.opacity = '0';
+    function validateAnswer(selectedLetter) {
+        if (!state.isTestRunning) return;
 
-                // Afficher les boutons de validation après le flash
-                setTimeout(() => {
-                    if (isTestRunning) {
-                        validationButtons.style.display = 'flex';
-                        prompt.textContent = "Quelle lettre avez-vous vue ?";
-                    }
-                }, 10);
-            }, FLASH_DURATION);
-        }
+        validationButtons.style.display = 'none';
+        disableValidationButtons(true);
 
-        // Configurer les boutons de validation
-        function setupValidationButtons() {
-            validationButtons.innerHTML = '';
-            letters.forEach(letter => {
-                const button = document.createElement('button');
-                button.className = 'letterButton';
-                button.textContent = letter;
-                button.addEventListener('click', () => validateAnswer(letter));
-                validationButtons.appendChild(button);
-            });
-        }
+        const isCorrect = selectedLetter === state.currentLetter;
+        state.totalTrials++;
 
-        // Valider la réponse
-        function validateAnswer(selectedLetter) {
-            validationButtons.style.display = 'none';
+        state.trialsHistory.push({
+            letter: state.currentLetter,
+            response: selectedLetter,
+            size: state.currentFontSize,
+            correct: isCorrect
+        });
 
-            if (selectedLetter === currentLetter) {
-                // Bonne réponse
-                letterDisplay.style.color = '#4CAF50';
-                letterDisplay.textContent = '✓';
-                errorsInRow = 0;
-
-                // Réduire la taille pour la prochaine lettre
-                currentFontSize = Math.max(MIN_FONT_SIZE, Math.round(currentFontSize * SIZE_ADJUSTMENT));
-                console.log(`Bonne réponse! Taille réduite à ${currentFontSize}px`);
-            } else {
-                // Mauvaise réponse
-                letterDisplay.style.color = '#F44336';
-                letterDisplay.textContent = '✗';
-                errorsInRow++;
-
-                // Si 3 erreurs consécutives, arrêter le test
-                if (errorsInRow >= 3) {
-                    endTest();
-                    return;
-                }
-
-                // Augmenter la taille pour la prochaine lettre
-                currentFontSize = Math.min(MAX_FONT_SIZE, Math.round(currentFontSize * SIZE_INCREASE));
-                console.log(`Mauvaise réponse! Taille augmentée à ${currentFontSize}px`);
+        if (isCorrect) {
+            state.correctAnswers++;
+            state.errorsInRow = 0;
+            letterDisplay.style.color = '#4CAF50';
+            letterDisplay.textContent = '✓';
+            state.currentFontSize = Math.max(
+                CONFIG.minFontSize,
+                Math.round(state.currentFontSize * CONFIG.sizeDecreaseFactor)
+            );
+        } else {
+            state.errorsInRow++;
+            letterDisplay.style.color = '#F44336';
+            letterDisplay.textContent = '✗';
+            state.currentFontSize = Math.min(
+                CONFIG.maxFontSize,
+                Math.round(state.currentFontSize * CONFIG.sizeIncreaseFactor)
+            );
+            if (state.errorsInRow >= state.maxErrorsInRow) {
+                // on laisse l’affichage du ✗ une seconde puis on termine
+                const endTimeout = setTimeout(endTest, 1000);
+                state.timeouts.push(endTimeout);
+                updateInfoDisplays();
+                return;
             }
-
-            // Mettre à jour les affichages
-            updateInfoDisplays();
-
-            // Attendre 1 seconde avant la prochaine lettre
-            setTimeout(() => {
-                letterDisplay.style.color = 'white';
-                showNextLetter();
-            }, 1000);
         }
 
-        // Arrêter le test
-        function endTest() {
-            isTestRunning = false;
-            prompt.textContent = "TEST TERMINÉ";
+        updateInfoDisplays();
 
-            // Afficher les résultats
-            const acuityScore = calculateAcuityScore();
-            resultsDiv.innerHTML = `
-                <h2>Résultats</h2>
-                <p>Taille minimale atteinte : ${currentFontSize} px</p>
-                <p>Acuité visuelle estimée : ${acuityScore.toFixed(2)}/1.0</p>
-                <p>Erreurs consécutives : ${errorsInRow}</p>
-            `;
+        const nextTimeout = setTimeout(() => {
+            if (!state.isTestRunning) return;
+            showNextLetter();
+        }, 1000);
 
-            // Évaluation de l'acuité
-            let evaluation = '';
-            if (acuityScore >= 0.8) evaluation = "Excellente";
-            else if (acuityScore >= 0.6) evaluation = "Bonne";
-            else if (acuityScore >= 0.4) evaluation = "Moyenne";
-            else evaluation = "Faible";
+        state.timeouts.push(nextTimeout);
+    }
 
-            resultsDiv.innerHTML += `<p>Évaluation : ${evaluation}</p>`;
+    function updateInfoDisplays() {
+        sizeInfo.textContent = `Taille actuelle : ${state.currentFontSize} px`;
+        errorsInfo.textContent = `Erreurs consécutives : ${state.errorsInRow}`;
+        trialInfo.textContent = `Essais : ${state.totalTrials}`;
+    }
 
-            // Réactiver le bouton de démarrage
-            startButton.disabled = false;
+    function calculateAcuityScore() {
+        return Math.min(1.0, CONFIG.maxFontSize / state.currentFontSize);
+    }
+
+    function startTimer() {
+        if (state.timerIntervalId) clearInterval(state.timerIntervalId);
+        state.timerIntervalId = setInterval(() => {
+            if (!state.startTime) return;
+            const elapsedSec = Math.round((Date.now() - state.startTime) / 1000);
+            timerInfo.textContent = `Temps : ${elapsedSec} s`;
+        }, 500);
+    }
+
+    function stopTimer() {
+        if (state.timerIntervalId) {
+            clearInterval(state.timerIntervalId);
+            state.timerIntervalId = null;
         }
+    }
 
-        // Calculer le score d'acuité
-        function calculateAcuityScore() {
-            return Math.min(1.0, MAX_FONT_SIZE / currentFontSize);
-        }
-    </script>
+    function clearAllTimeouts() {
+        state.timeouts.forEach(id => clearTimeout(id));
+        state.timeouts = [];
+    }
+</script>
 </body>
 </html>
