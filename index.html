@@ -38,6 +38,7 @@
             z-index: 10;
             pointer-events: none;
             text-shadow: 0 0 15px rgba(255, 255, 255, 0.7), 0 0 5px black;
+            transition: opacity 0.05s linear;
         }
 
         /* Bandeau supérieur */
@@ -143,6 +144,14 @@
             background: #444;
         }
 
+        button.success {
+            background: #28a745;
+        }
+
+        button.success:hover {
+            background: #218838;
+        }
+
         #calibPanel {
             display: none;
             margin-top: 8px;
@@ -203,6 +212,38 @@
             font-size: 11px;
             margin-top: 10px;
         }
+
+        /* Panneau de calibration d'acuité */
+        #acuityCalibPanel {
+            display: none;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #444;
+            width: 100%;
+            text-align: center;
+            background: rgba(0,0,20,0.8);
+            border-radius: 0 0 6px 6px;
+        }
+
+        .acuity-calib-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .acuity-result {
+            font-size: 12px;
+            margin: 10px 0;
+            color: #0ff;
+            font-weight: bold;
+        }
+
+        .acuity-instructions {
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -227,6 +268,7 @@
         <div class="top-section">
             <div class="top-stat" id="statusDist">Dist: -- cm</div>
             <div class="top-stat" id="statusSize">Lettre: -- px</div>
+            <div class="top-stat" id="statusAcuity">Acuité: <span id="currentAcuity">1.0</span></div>
         </div>
     </div>
 
@@ -241,10 +283,12 @@
             </div>
             <div class="bottom-right">
                 <button class="secondary" onclick="toggleCalib()">📏 Calibrer</button>
+                <button class="secondary" onclick="toggleAcuityCalib()">👁️ Calibrer Acuité</button>
                 <button onclick="startApp()" id="startBtnBottom">DÉMARRER</button>
             </div>
         </div>
 
+        <!-- Panneau de calibration physique -->
         <div id="calibPanel">
             <div class="calib-label">
                 Ajustez la barre rouge pour qu'elle mesure exactement <b>1 cm</b> sur votre écran.
@@ -255,6 +299,24 @@
             <input type="range" id="calibSlider" min="0.5" max="2.0" step="0.01" value="1.0" oninput="updateCalib()" style="width:100%;">
             <button onclick="saveCalib()" style="background:#28a745; margin-top:6px; padding:5px;">Sauvegarder</button>
             <p id="calibFeedback" style="font-size:10px; margin-top:5px; color:#aaa;"></p>
+        </div>
+
+        <!-- Panneau de calibration d'acuité -->
+        <div id="acuityCalibPanel">
+            <div class="acuity-instructions">
+                Cliquez sur "Lancer Test" pour afficher une lettre pendant 60ms.<br>
+                Ajustez la taille jusqu'à ce que vous puissiez la lire clairement.
+            </div>
+            <div class="acuity-calib-controls">
+                <button onclick="startAcuityCalibration()" id="startAcuityBtn" style="background:#ffc107; color:#000;">Lancer Test</button>
+                <div id="acuityCalibResult" class="acuity-result">Acuité calibrée: --</div>
+                <input type="range" id="acuityCalibSlider" min="0.1" max="2.0" step="0.05" value="1.0" style="width:200px;">
+                <div style="font-size:10px; color:#aaa; margin-top:5px;">
+                    Taille: <span id="acuitySizeDisplay">-- px</span> (≈ <span id="acuityCmDisplay">--</span> mm)
+                </div>
+                <button onclick="saveAcuityCalib()" class="success" style="margin-top:10px;">Sauvegarder Acuité</button>
+                <p id="acuityFeedback" style="font-size:10px; margin-top:5px; color:#aaa;"></p>
+            </div>
         </div>
     </div>
 
@@ -280,6 +342,10 @@
 
         // Paramètres d'acuité
         let acuity = 1.0;
+        let acuityCalibrated = null; // Acuité calibrée à 60ms
+        let isCalibratingAcuity = false;
+        let currentCalibLetterSize = 100;
+        let currentCalibLetterCm = 0.5;
 
         // Tracking
         let lastHeadPos = null;
@@ -293,7 +359,7 @@
         const letters = "C D F H L N O P T U V Z".split(" ");
 
         // =============================================
-        // FONCTIONS DE CALIBRATION
+        // FONCTIONS DE CALIBRATION PHYSIQUE
         // =============================================
         function toggleCalib() {
             const panel = document.getElementById('calibPanel');
@@ -333,11 +399,94 @@
         }
 
         // =============================================
+        // FONCTIONS DE CALIBRATION D'ACUITÉ
+        // =============================================
+        function toggleAcuityCalib() {
+            const panel = document.getElementById('acuityCalibPanel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            document.getElementById('startAcuityBtn').textContent = "Lancer Test";
+
+            if (panel.style.display === 'none') {
+                // Réinitialiser l'état
+                isCalibratingAcuity = false;
+                letterEl.style.opacity = '0';
+            }
+        }
+
+        function startAcuityCalibration() {
+            if (isCalibratingAcuity) return;
+
+            isCalibratingAcuity = true;
+            document.getElementById('startAcuityBtn').textContent = "Nouveau Test";
+
+            // Calculer la taille de la lettre pour le test
+            const sizePx = calculateSize(50, parseFloat(document.getElementById('acuityCalibSlider').value));
+            letterEl.style.fontSize = sizePx + 'px';
+            currentCalibLetterSize = sizePx;
+            currentCalibLetterCm = (sizePx / screenDPI) * 2.54;
+
+            // Afficher la lettre
+            const randomLetter = letters[Math.floor(Math.random() * letters.length)];
+            letterEl.innerText = randomLetter;
+            letterEl.style.opacity = '1';
+
+            // Masquer après 60ms
+            setTimeout(() => {
+                letterEl.style.opacity = '0';
+                isCalibratingAcuity = false;
+
+                // Calculer l'acuité basée sur la taille affichée
+                // On veut que la lettre soit visible à 50cm, donc on ajuste l'acuité
+                // Acuité = (taille réelle souhaitée en mm) / (taille réelle calculée en mm)
+                // Pour une lettre de 1.5mm à 50cm avec acuity=1.0:
+                // acuity = 1.5 / (currentCalibLetterCm * 10)
+                const desiredSizeMm = 1.5; // Taille souhaitée pour une acuité normale
+                const actualSizeMm = currentCalibLetterCm * 10; // Conversion cm → mm
+                acuityCalibrated = desiredSizeMm / actualSizeMm;
+
+                // Afficher le résultat
+                document.getElementById('acuityCalibResult').innerText =
+                    `Acuité calibrée: ${acuityCalibrated.toFixed(2)}`;
+
+                // Mettre à jour l'affichage
+                document.getElementById('acuitySizeDisplay').innerText = sizePx + 'px';
+                document.getElementById('acuityCmDisplay').innerText = (currentCalibLetterCm * 10).toFixed(1);
+
+            }, 60);
+        }
+
+        function saveAcuityCalib() {
+            if (acuityCalibrated === null) {
+                document.getElementById('acuityFeedback').innerText = "⚠️ Faites d'abord un test";
+                setTimeout(() => document.getElementById('acuityFeedback').innerText = '', 3000);
+                return;
+            }
+
+            localStorage.setItem('avd_acuity_calib_v1', acuityCalibrated);
+            document.getElementById('acuityCalibPanel').style.display = 'none';
+
+            document.getElementById('acuityFeedback').innerText = "✓ Acuité sauvegardée";
+            setTimeout(() => document.getElementById('acuityFeedback').innerText = '', 3000);
+
+            // Mettre à jour l'affichage
+            updateStats();
+        }
+
+        function loadAcuityCalib() {
+            const saved = localStorage.getItem('avd_acuity_calib_v1');
+            if (saved) {
+                acuityCalibrated = parseFloat(saved);
+                document.getElementById('currentAcuity').innerText = acuityCalibrated.toFixed(2);
+            }
+        }
+
+        // =============================================
         // FONCTIONS DE PARAMÈTRES
         // =============================================
         function updateParams() {
             acuity = parseFloat(document.getElementById('acuity').value);
             document.getElementById('valAcuity').innerText = acuity.toFixed(1);
+            updateStats();
         }
 
         // =============================================
@@ -346,8 +495,14 @@
         function updateStats() {
             document.getElementById('statusSpeed').innerText = `Vit: ${Math.round(speed)}`;
             document.getElementById('statusDist').innerText = `Dist: ~${Math.round(distance)} cm`;
-            let currentSize = calculateSize(distance, acuity);
+
+            // Utiliser l'acuité calibrée si disponible, sinon utiliser l'acuité standard
+            const currentAcuityValue = acuityCalibrated !== null ? acuityCalibrated : acuity;
+
+            let currentSize = calculateSize(distance, currentAcuityValue);
             document.getElementById('statusSize').innerText = `Lettre: ${currentSize}px`;
+            document.getElementById('currentAcuity').innerText = currentAcuityValue.toFixed(2);
+
             let pct = Math.min(100, (speed / 250) * 100);
             document.getElementById('speedBar').style.width = `${pct}%`;
         }
@@ -356,7 +511,9 @@
         // CALCUL DE LA TAILLE DES LETTRES
         // =============================================
         function calculateSize(distCm, acuityDecimal) {
-            let heightCm = (distCm * 0.0145) / acuityDecimal;
+            // Taille de référence: 1.5mm à 40cm avec acuity=1.0
+            // Donc: heightCm = (distCm * 0.00375) / acuityDecimal
+            let heightCm = (distCm * 0.00375) / acuityDecimal;
             let heightPx = (heightCm / 2.54) * screenDPI;
             return Math.max(20, Math.round(heightPx));
         }
@@ -375,7 +532,11 @@
                     lastFlashTime = now;
                     const randomLetter = letters[Math.floor(Math.random() * letters.length)];
                     letterEl.innerText = randomLetter;
-                    letterEl.style.fontSize = calculateSize(distance, acuity) + 'px';
+
+                    // Utiliser l'acuité calibrée si disponible
+                    const currentAcuityValue = acuityCalibrated !== null ? acuityCalibrated : acuity;
+                    letterEl.style.fontSize = calculateSize(distance, currentAcuityValue) + 'px';
+
                     letterEl.style.opacity = '1';
                     setTimeout(() => {
                         letterEl.style.opacity = '0';
@@ -454,6 +615,7 @@
 
             try {
                 loadCalib();
+                loadAcuityCalib();
 
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
