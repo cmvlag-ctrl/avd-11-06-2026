@@ -3,235 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Test AV - Auto-Adaptatif (Distance)</title>
+    <title>Test AV Flashé - Auto-Adaptatif</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; color: white; }
-        video {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover; opacity: 0.2; z-index: 1; transform: scaleX(-1);
+        body {
+            margin: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: sans-serif;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #testScreen {
+            text-align: center;
+            position: relative;
         }
         #letterDisplay {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 100px; font-weight: bold; color: white;
-            opacity: 0; z-index: 10; pointer-events: none;
-            text-shadow: 0 0 10px black;
+            font-size: 200px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 20px #fff;
+            opacity: 0;
+            transition: opacity 0.1s linear;
         }
-        #ui {
-            position: absolute; top: 10px; left: 10px; z-index: 20;
-            background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px;
-            max-width: 300px;
+        #prompt {
+            font-size: 24px;
+            margin-top: 20px;
+            color: #0f0;
         }
-        .stat { font-size: 12px; margin: 2px 0; color: #0f0; font-family: monospace; }
-        .error { color: #f55; }
-
-        /* Jauge de vitesse */
-        .speed-gauge {
-            height: 6px; background: #333; margin-top: 5px; border-radius: 3px; overflow: hidden;
+        #stats {
+            margin-top: 30px;
+            font-size: 18px;
         }
-        .speed-bar {
-            height: 100%; width: 0%; background: linear-gradient(90deg, #0f0, #ff0, #f00);
-            transition: width 0.1s linear;
+        #startButton {
+            background: #4ecdc4;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 20px;
         }
-
-        button {
-            background: #4ecdc4; border: none; padding: 10px; border-radius: 5px;
-            cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px;
+        #startButton:hover {
+            background: #45b7b8;
         }
-        button.secondary { background: #555; color: white; }
-        #startOverlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 100; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; text-align: center; padding: 20px;
+        .hidden {
+            display: none;
         }
-        #calibMessage { font-size: 16px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
-
-    <div id="startOverlay">
-        <h1>Test Acuité Visuelle Auto-Adaptatif</h1>
-        <p>Le test s'adapte automatiquement à votre distance.</p>
-        <button onclick="startApp()">DÉMARRER</button>
-        <p id="errorMsg" class="error"></p>
+    <div id="testScreen">
+        <div id="letterDisplay"></div>
+        <div id="prompt">Appuyez sur la lettre que vous avez vue</div>
+        <div id="stats"></div>
+        <button id="startButton">DÉMARRER LE TEST</button>
     </div>
 
-    <video id="video" playsinline autoplay muted></video>
-    <div id="letterDisplay">A</div>
-
-    <div id="ui" style="display:none;">
-        <div class="stat" id="statusInit">Initialisation...</div>
-        <div class="stat" id="statusSpeed">Vitesse: 0</div>
-        <div class="speed-gauge"><div class="speed-bar" id="speedBar"></div></div>
-
-        <div class="stat" id="statusDist" style="margin-top:5px;">Distance: -- cm</div>
-        <div class="stat" id="statusSize">Taille lettre: -- px</div>
-
-        <hr style="border-color:#333; margin: 5px 0;">
-
-        <div style="font-size:11px; margin-bottom:5px;">
-            Acuité: <span id="valAcuity">1.0</span>
-            <input type="range" id="acuity" min="0.1" max="2.0" step="0.1" value="1.0" oninput="updateParams()" style="width:100%; margin:0;">
-        </div>
-    </div>
+    <video id="video" playsinline autoplay muted class="hidden"></video>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script>
 
     <script>
-        let model = null;
-        let video = document.getElementById('video');
-        let letterEl = document.getElementById('letterDisplay');
-        let ui = document.getElementById('ui');
-        let overlay = document.getElementById('startOverlay');
-
-        // Paramètres dynamiques
-        let acuity = 1.0; // Niveau d'acuité (1.0 = 10/10)
-        let K_FACTOR = 2800; // Facteur de calibration (à ajuster automatiquement)
-
-        // Tracking
-        let lastHeadPos = null;
-        let lastTime = 0;
-        let speed = 0;
-        let smoothedSpeed = 0;
-        let distance = 50; // Distance estimée (cm)
-        let state = 'IDLE';
+        // --- CONFIGURATION ---
+        const letters = "A C D F H L N O P T U V Z".split(" ");
+        const flashDuration = 60; // ms
+        const cooldownDuration = 1000; // ms entre chaque lettre
+        let currentLetter = "";
+        let testRunning = false;
         let lastFlashTime = 0;
-        const letters = "C D F H L N O P T U V Z".split(" ");
+        let correctAnswers = 0;
+        let totalQuestions = 0;
+        let distance = 50; // Distance estimée (cm)
+        let K_FACTOR = 2800; // Facteur de calibration (à ajuster si nécessaire)
 
-        // --- DÉMARRAGE ---
-        async function startApp() {
+        // --- ÉLÉMENTS DOM ---
+        const letterDisplay = document.getElementById('letterDisplay');
+        const prompt = document.getElementById('prompt');
+        const stats = document.getElementById('stats');
+        const startButton = document.getElementById('startButton');
+        const video = document.getElementById('video');
+
+        // --- INITIALISATION ---
+        startButton.addEventListener('click', startTest);
+        document.addEventListener('keydown', handleKeyPress);
+
+        async function startTest() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+                    video: { facingMode: 'user', width: 640, height: 480 }
                 });
                 video.srcObject = stream;
-                video.onloadedmetadata = async () => {
-                    overlay.style.display = 'none';
-                    ui.style.display = 'block';
-                    video.play();
-                    document.getElementById('statusInit').innerText = "Chargement IA...";
-                    model = await blazeface.load();
-                    document.getElementById('statusInit').innerText = "Prêt !";
-                    loop();
-                };
+                video.play();
+                startButton.classList.add('hidden');
+                testRunning = true;
+                correctAnswers = 0;
+                totalQuestions = 0;
+                stats.innerHTML = "";
+                document.getElementById('testScreen').style.display = 'block';
+
+                // Charger le modèle de détection de visage
+                const model = await blazeface.load();
+
+                // Boucle principale
+                function loop() {
+                    if (!testRunning) return;
+
+                    model.estimateFaces(video, false).then(predictions => {
+                        if (predictions.length > 0) {
+                            const face = predictions[0];
+                            const leftEye = face.landmarks[0];
+                            const rightEye = face.landmarks[1];
+
+                            // Calcul de la distance inter-yeux (px)
+                            const distInterYeuxPx = Math.sqrt(
+                                Math.pow(rightEye[0] - leftEye[0], 2) +
+                                Math.pow(rightEye[1] - leftEye[1], 2)
+                            );
+
+                            // Calcul de la distance réelle (cm)
+                            if (distInterYeuxPx > 5) {
+                                distance = K_FACTOR / distInterYeuxPx;
+                                distance = Math.max(30, Math.min(200, distance)); // Limite 30-200 cm
+                            }
+                        }
+
+                        // Afficher une lettre si le temps est écoulé
+                        const now = Date.now();
+                        if (now - lastFlashTime > cooldownDuration) {
+                            showLetter();
+                            lastFlashTime = now;
+                        }
+
+                        requestAnimationFrame(loop);
+                    });
+                }
+                loop();
             } catch (err) {
-                document.getElementById('errorMsg').innerText = "Erreur Caméra : " + err.message;
+                alert("Erreur caméra : " + err.message);
             }
         }
 
-        // --- BOUCLE PRINCIPALE ---
-        async function loop() {
-            if (!model) return;
+        // --- AFFICHAGE DES LETTRES ---
+        function showLetter() {
+            if (!testRunning) return;
 
-            const predictions = await model.estimateFaces(video, false);
+            // Choisir une lettre aléatoire
+            currentLetter = letters[Math.floor(Math.random() * letters.length)];
+            letterDisplay.innerText = currentLetter;
 
-            if (predictions.length > 0) {
-                const face = predictions[0];
-                const nose = face.landmarks[2];
-                const leftEye = face.landmarks[0];
-                const rightEye = face.landmarks[1];
+            // Calculer la taille adaptative en fonction de la distance
+            const letterSizePx = calculateLetterSize(distance, 1.0); // Acuité = 1.0 par défaut
+            letterDisplay.style.fontSize = letterSizePx + 'px';
 
-                // 1. CALCUL DE LA DISTANCE INTER-YEUX (px)
-                const distInterYeuxPx = Math.sqrt(
-                    Math.pow(rightEye[0] - leftEye[0], 2) +
-                    Math.pow(rightEye[1] - leftEye[1], 2)
-                );
-
-                // 2. CALCUL DE LA DISTANCE RÉELLE (cm) - LOGIQUE ORIGINALE
-                if (distInterYeuxPx > 5) {
-                    let calculatedDist = K_FACTOR / distInterYeuxPx;
-                    distance = (distance * 0.9) + (calculatedDist * 0.1);
-                    distance = Math.max(30, Math.min(200, distance)); // Limite 30-200 cm
-                }
-
-                // 3. CALCUL DE LA VITESSE (inchangé)
-                const now = performance.now();
-                if (lastHeadPos) {
-                    const dt = (now - lastTime);
-                    if (dt > 16) {
-                        const dx = nose[0] - lastHeadPos.x;
-                        const dy = nose[1] - lastHeadPos.y;
-                        const distPx = Math.sqrt(dx*dx + dy*dy);
-                        let rawSpeed = distPx / dt;
-                        smoothedSpeed = (smoothedSpeed * 0.7) + (rawSpeed * 0.3);
-                        speed = smoothedSpeed * 1000;
-                    }
-                }
-                lastHeadPos = { x: nose[0], y: nose[1] };
-                lastTime = now;
-
-                handleState(speed, now);
-                updateStats();
-            } else {
-                smoothedSpeed = smoothedSpeed * 0.9;
-                speed = smoothedSpeed * 1000;
-                updateStats();
-            }
-            requestAnimationFrame(loop);
+            // Afficher la lettre pendant 60 ms
+            letterDisplay.style.opacity = '1';
+            setTimeout(() => {
+                letterDisplay.style.opacity = '0';
+            }, flashDuration);
         }
 
-        // --- MACHINE D'ÉTAT ---
-        function handleState(currentSpeed, now) {
-            const minSpeedTrigger = 150;
-            const flashDuration = 60;
-            const cooldownDuration = 1000;
+        // --- CALCUL DE LA TAILLE DES LETTRES ---
+        function calculateLetterSize(distCm, acuity) {
+            // Formule standard pour les tests d'acuité :
+            // À 10/10 (acuité=1.0), une lettre doit avoir une taille angulaire de 5 minutes d'arc.
+            // Taille en pixels = (taille_angulaire * distance) / (3438 * tan(1/60))
+            // Simplifié : taille_px = (distance_cm * 0.0145) / acuity
+            const heightCm = (distCm * 0.0145) / acuity;
+            const heightPx = (heightCm / 2.54) * 96; // 96 DPI standard
+            return Math.max(50, Math.round(heightPx)); // Taille minimale de 50px
+        }
 
-            if (state === 'IDLE') {
-                if (currentSpeed > minSpeedTrigger && (now - lastFlashTime > cooldownDuration)) {
-                    state = 'FLASH';
-                    lastFlashTime = now;
+        // --- GESTION DES RÉPONSES ---
+        function handleKeyPress(e) {
+            if (!testRunning || !currentLetter) return;
 
-                    const randomLetter = letters[Math.floor(Math.random() * letters.length)];
-                    letterEl.innerText = randomLetter;
-                    // TAILLE ADAPTATIVE : calculée en fonction de la distance réelle !
-                    letterEl.style.fontSize = calculateSize(distance, acuity) + 'px';
-                    letterEl.style.opacity = '1';
-
-                    setTimeout(() => {
-                        letterEl.style.opacity = '0';
-                        state = 'IDLE';
-                    }, flashDuration);
+            // Vérifier si la touche correspond à la lettre affichée
+            const pressedLetter = e.key.toUpperCase();
+            if (letters.includes(pressedLetter)) {
+                totalQuestions++;
+                if (pressedLetter === currentLetter) {
+                    correctAnswers++;
+                    prompt.innerText = "✅ Correct !";
+                    prompt.style.color = "#0f0";
+                } else {
+                    prompt.innerText = `❌ Faux ! La lettre était : ${currentLetter}`;
+                    prompt.style.color = "#f55";
                 }
+
+                // Mettre à jour les statistiques
+                const accuracy = Math.round((correctAnswers / totalQuestions) * 100);
+                stats.innerHTML = `
+                    <strong>Score : ${correctAnswers}/${totalQuestions} (${accuracy}%)</strong><br>
+                    Distance : ~${Math.round(distance)} cm<br>
+                    Taille lettre : ${calculateLetterSize(distance, 1.0)} px
+                `;
+
+                // Préparer la prochaine lettre
+                setTimeout(() => {
+                    prompt.innerText = "Appuyez sur la lettre que vous avez vue";
+                    prompt.style.color = "#0f0";
+                }, 2000);
             }
         }
 
-        // --- CALCUL DE LA TAILLE DES LETTRES (ADAPTATIF) ---
-        // Formule standard pour les tests d'acuité :
-        // - À 10/10 (acuité=1.0), une lettre doit avoir une taille angulaire de 5 minutes d'arc.
-        // - Taille en pixels = (taille_angulaire * distance) / (3438 * tan(1/60))
-        // Simplifié : taille_px = (distance_cm * 0.0145) / acuity
-        function calculateSize(distCm, acuityDecimal) {
-            // 0.0145 = 5 minutes d'arc (taille standard pour 10/10)
-            // Cette formule donne la hauteur en cm d'une lettre à 10/10.
-            // On divise par acuityDecimal pour ajuster la taille selon l'acuité.
-            let heightCm = (distCm * 0.0145) / acuityDecimal;
-
-            // Conversion en pixels (96 DPI standard)
-            let heightPx = (heightCm / 2.54) * 96;
-
-            // Taille minimale (pour éviter des lettres trop petites)
-            return Math.max(20, Math.round(heightPx));
-        }
-
-        function updateParams() {
-            acuity = parseFloat(document.getElementById('acuity').value);
-            document.getElementById('valAcuity').innerText = acuity.toFixed(1);
-        }
-
-        function updateStats() {
-            document.getElementById('statusSpeed').innerText = `Vitesse: ${Math.round(speed)}`;
-            document.getElementById('statusDist').innerText = `Distance: ~${Math.round(distance)} cm`;
-
-            let currentSize = calculateSize(distance, acuity);
-            document.getElementById('statusSize').innerText = `Taille lettre: ${currentSize} px`;
-
-            // Jauge de vitesse
-            let pct = Math.min(100, (speed / 250) * 100);
-            document.getElementById('speedBar').style.width = `${pct}%`;
-            const bar = document.getElementById('speedBar');
-            if(speed > 150) bar.style.background = '#f00';
-            else bar.style.background = 'linear-gradient(90deg, #0f0, #ff0, #f00)';
+        // --- ARRÊTER LE TEST ---
+        function stopTest() {
+            testRunning = false;
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            document.getElementById('testScreen').style.display = 'none';
+            startButton.classList.remove('hidden');
         }
     </script>
 </body>
