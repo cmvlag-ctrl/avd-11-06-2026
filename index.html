@@ -221,7 +221,7 @@
         }
 
         // =============================================
-        // PARTIE TEST D'ACUITÉ (CORRIGÉE)
+        // PARTIE TEST D'ACUITÉ (60ms d'apparition)
         // =============================================
 
         // Variables pour le test d'acuité
@@ -258,7 +258,7 @@
             return Math.max(20, Math.round(heightPx));
         }
 
-        // Afficher la lettre suivante avec la bonne taille
+        // Afficher la lettre suivante avec la bonne taille (60ms d'apparition)
         function showNextAcuityLetter() {
             if (!acuityTestActive) return;
 
@@ -279,7 +279,7 @@
             acuityLetter.style.fontSize = letterSizePx + 'px';
             acuityLetter.style.opacity = '1';
 
-            // Masquer après 500ms
+            // Masquer après 60ms (temps réduit)
             letterFlashTimeout = setTimeout(() => {
                 acuityLetter.style.opacity = '0';
 
@@ -287,7 +287,7 @@
                 setTimeout(() => {
                     askForAcuityAnswer();
                 }, 1000);
-            }, 500);
+            }, 60); // ← Temps réduit à 60ms
         }
 
         // Demander la réponse de l'utilisateur
