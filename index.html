@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test d'Acuité Flashée - Avec Calibration de Distance</title>
+    <title>Test d'Acuité Flashée - Optimisé</title>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         body {
@@ -74,7 +74,6 @@
         #infoDisplay {
             font-size: 18px;
             margin: 10px 0;
-            color: #ffeb3b;
         }
         #distanceInfo {
             color: #4CAF50;
@@ -82,293 +81,189 @@
         #sizeInfo {
             color: #2196F3;
         }
-        #errorsInfo {
+        #errorCount {
             color: #f44336;
-        }
-        #loading {
-            font-size: 24px;
-            margin: 20px 0;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div id="testContainer">
-        <h1>Test d'Acuité Visuelle Flashée</h1>
-        <p>Calibration automatique de distance + ajustement dynamique</p>
-
-        <button id="startButton">DÉMARRER LE TEST (autorisez la caméra)</button>
-
-        <div id="loading" style="display: none;">Chargement de la détection faciale...</div>
+        <h1>Test d'Acuité Visuelle</h1>
+        <p id="prompt">Calibration en cours...</p>
 
         <div id="infoDisplay">
-            <div id="distanceInfo">Distance : -- cm</div>
-            <div id="sizeInfo">Taille : -- px</div>
-            <div id="errorsInfo">Erreurs : 0</div>
+            <div id="distanceInfo">Distance: -- cm</div>
+            <div id="sizeInfo">Taille lettre: -- px</div>
+            <div id="errorCount">Erreurs: 0/3</div>
         </div>
 
         <div id="letterDisplay"></div>
 
-        <div id="prompt">Préparez-vous...</div>
-
         <div id="validationButtons" style="display: none;">
-            <!-- Boutons générés dynamiquement -->
+            <button class="letterButton" onclick="validateAnswer('E')">E</button>
+            <button class="letterButton" onclick="validateAnswer('F')">F</button>
+            <button class="letterButton" onclick="validateAnswer('P')">P</button>
+            <button class="letterButton" onclick="validateAnswer('T')">T</button>
+            <button class="letterButton" onclick="validateAnswer('Z')">Z</button>
         </div>
 
         <div id="results"></div>
+
+        <button id="startButton" onclick="startTest()">DÉMARRER LE TEST (autorisez la caméra)</button>
     </div>
 
     <script>
         // Configuration
-        const FLASH_DURATION = 60; // ms
-        const MIN_FONT_SIZE = 20; // Taille minimale des lettres (px)
-        const MAX_FONT_SIZE = 400; // Taille maximale des lettres (px)
-        const TARGET_DISTANCE = 50; // Distance cible en cm (pour calibration)
-        const SIZE_ADJUSTMENT = 0.9; // Réduction de taille après bonne réponse
-        const SIZE_INCREASE = 1.1; // Augmentation de taille après mauvaise réponse
-        const REFERENCE_SIZE = 150; // Taille de référence à 50cm (px)
+        const SIZE_ADJUSTMENT = 0.8;  // Réduction de 20% à chaque bonne réponse
+        const SIZE_INCREASE = 1.1;    // Augmentation de 10% pour les mauvaises réponses
+        const MIN_FONT_SIZE = 20;     // Taille minimale (px)
+        const REFERENCE_DISTANCE = 50; // Distance de référence (cm)
+        const REFERENCE_SIZE = 150;   // Taille de référence à 50cm (px)
+        const FLASH_DURATION = 60;    // Durée du flash en ms
 
         // Variables globales
         let currentFontSize = REFERENCE_SIZE;
-        let errorsInRow = 0;
-        let currentLetter = '';
+        let errorCount = 0;
         let isTestRunning = false;
-        let faceMatcher;
-        let videoWidth = 640, videoHeight = 480;
-        let distance = 0;
+        let faceDistance = REFERENCE_DISTANCE;
 
-        // Lettres disponibles
-        const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'H', 'K', 'L', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'X', 'Z'];
-
-        // Éléments DOM
-        let startButton, letterDisplay, prompt, validationButtons, distanceInfo, sizeInfo, errorsInfo, resultsDiv, loadingDiv;
-
-        // Initialisation
-        document.addEventListener('DOMContentLoaded', () => {
-            startButton = document.getElementById('startButton');
-            letterDisplay = document.getElementById('letterDisplay');
-            prompt = document.getElementById('prompt');
-            validationButtons = document.getElementById('validationButtons');
-            distanceInfo = document.getElementById('distanceInfo');
-            sizeInfo = document.getElementById('sizeInfo');
-            errorsInfo = document.getElementById('errorsInfo');
-            resultsDiv = document.getElementById('results');
-            loadingDiv = document.getElementById('loading');
-
-            // Configurer le bouton de démarrage
-            startButton.addEventListener('click', startCalibration);
-
-            // Initialiser les boutons de validation
-            setupValidationButtons();
-        });
-
-        // Démarrer la calibration
-        async function startCalibration() {
-            startButton.style.display = 'none';
-            loadingDiv.style.display = 'block';
-            prompt.textContent = "Chargement de la détection faciale...";
-
-            try {
-                // Charger les modèles de face-api
-                await loadModels();
-                await setupCamera();
-
-                // Démarrer la détection
-                detectFaces();
-                loadingDiv.style.display = 'none';
-                prompt.textContent = "Placez votre visage à 50 cm de la caméra...";
-
-                // Après 5 secondes, démarrer le test
-                setTimeout(startTest, 5000);
-            } catch (error) {
-                console.error("Erreur:", error);
-                prompt.textContent = "Erreur de chargement. Veuillez réessayer.";
-                startButton.style.display = 'block';
-                loadingDiv.style.display = 'none';
-            }
-        }
-
-        // Charger les modèles de face-api
+        // Initialisation de face-api.js
         async function loadModels() {
             await faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
             await faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
-            await faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
-        }
-
-        // Configurer la caméra
-        async function setupCamera() {
-            const video = document.createElement('video');
-            video.width = videoWidth;
-            video.height = videoHeight;
-            video.style.display = 'none';
-
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
-
-            // Attendre que la vidéo soit prête
-            await new Promise((resolve) => {
-                video.onloadedmetadata = () => {
-                    resolve();
-                };
-            });
-
-            document.body.appendChild(video);
-        }
-
-        // Détecter les visages en continu
-        function detectFaces() {
-            const video = document.querySelector('video');
-            if (!video) return;
-
-            setInterval(async () => {
-                if (!video.paused && !video.ended) {
-                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-                        .withFaceLandmarks();
-
-                    if (detections.length > 0) {
-                        // Calculer la distance (simplifié)
-                        const faceWidth = detections[0].box.width;
-                        const faceHeight = detections[0].box.height;
-
-                        // Estimation de la distance (formule empirique)
-                        // Plus le visage est petit, plus on est loin
-                        distance = Math.round((REFERENCE_SIZE * 50) / faceWidth);
-
-                        // Mettre à jour l'affichage
-                        distanceInfo.textContent = `Distance : ${distance} cm`;
-
-                        // Calculer la taille adaptée
-                        const sizeRatio = distance / TARGET_DISTANCE;
-                        currentFontSize = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(REFERENCE_SIZE * sizeRatio)));
-
-                        sizeInfo.textContent = `Taille : ${currentFontSize} px`;
-                    }
-                }
-            }, 500);
         }
 
         // Démarrer le test
-        function startTest() {
-            prompt.textContent = "Test en cours...";
+        async function startTest() {
+            document.getElementById('startButton').style.display = 'none';
+            document.getElementById('prompt').textContent = "Placez votre visage à ~50cm de la caméra";
 
-            // Réinitialiser les variables
-            errorsInRow = 0;
-            updateInfoDisplays();
+            // Charger les modèles de détection faciale
+            await loadModels();
 
-            // Réinitialiser l'affichage
-            resultsDiv.innerHTML = '';
-            letterDisplay.style.opacity = '0';
+            // Lancer la détection de distance
+            setInterval(updateDistance, 500);
 
+            // Démarrer le test après 2 secondes
+            setTimeout(beginTestSequence, 2000);
+        }
+
+        // Mettre à jour la distance estimée
+        async function updateDistance() {
+            const video = document.querySelector('video');
+            if (!video || video.readyState !== 4) return;
+
+            const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                .withFaceLandmarks();
+
+            if (detection) {
+                // Calcul simplifié de la distance (basé sur la taille du visage)
+                const faceWidth = detection.box.width;
+                faceDistance = Math.round((REFERENCE_DISTANCE * REFERENCE_SIZE) / faceWidth);
+
+                document.getElementById('distanceInfo').textContent = `Distance: ${faceDistance} cm`;
+                document.getElementById('sizeInfo').textContent = `Taille lettre: ${currentFontSize} px`;
+            }
+        }
+
+        // Adapter la taille en fonction de la distance
+        function adjustSizeForDistance() {
+            if (faceDistance <= 0) return;
+
+            // Formule: taille = taille_reference × (distance_reference / distance_actuelle)
+            const newSize = Math.round(REFERENCE_SIZE * (REFERENCE_DISTANCE / faceDistance));
+            currentFontSize = Math.max(MIN_FONT_SIZE, newSize);
+
+            document.getElementById('sizeInfo').textContent = `Taille lettre: ${currentFontSize} px`;
+        }
+
+        // Début de la séquence de test
+        function beginTestSequence() {
+            document.getElementById('prompt').textContent = "Test en cours...";
+            document.getElementById('validationButtons').style.display = 'flex';
             isTestRunning = true;
-            showNextLetter();
+
+            // Adapter la taille initiale à la distance réelle
+            adjustSizeForDistance();
+
+            // Lancer le premier test
+            setTimeout(flashLetter, 500);
         }
 
-        // Mettre à jour les affichages d'information
-        function updateInfoDisplays() {
-            errorsInfo.textContent = `Erreurs : ${errorsInRow}`;
-        }
-
-        // Afficher la prochaine lettre
-        function showNextLetter() {
+        // Afficher une lettre aléatoire pendant 60ms
+        function flashLetter() {
             if (!isTestRunning) return;
 
-            // Générer une lettre aléatoire
-            currentLetter = letters[Math.floor(Math.random() * letters.length)];
+            const letters = ['E', 'F', 'P', 'T', 'Z'];
+            const randomLetter = letters[Math.floor(Math.random() * letters.length)];
 
-            // Afficher la lettre
-            letterDisplay.textContent = currentLetter;
-            letterDisplay.style.fontSize = `${currentFontSize}px`;
+            const letterDisplay = document.getElementById('letterDisplay');
+            letterDisplay.textContent = randomLetter;
             letterDisplay.style.opacity = '1';
+            letterDisplay.style.fontSize = `${currentFontSize}px`;
 
             // Masquer après 60ms
             setTimeout(() => {
                 letterDisplay.style.opacity = '0';
 
-                // Afficher les boutons de validation après le flash
-                setTimeout(() => {
-                    if (isTestRunning) {
-                        validationButtons.style.display = 'flex';
-                        prompt.textContent = "Quelle lettre avez-vous vue ?";
-                    }
-                }, 10);
+                // Attendre 1 seconde avant la prochaine lettre
+                setTimeout(flashLetter, 1000);
             }, FLASH_DURATION);
         }
 
-        // Configurer les boutons de validation
-        function setupValidationButtons() {
-            validationButtons.innerHTML = '';
-            letters.forEach(letter => {
-                const button = document.createElement('button');
-                button.className = 'letterButton';
-                button.textContent = letter;
-                button.addEventListener('click', () => validateAnswer(letter));
-                validationButtons.appendChild(button);
-            });
-        }
-
-        // Valider la réponse
+        // Valider une réponse
         function validateAnswer(selectedLetter) {
-            validationButtons.style.display = 'none';
+            if (!isTestRunning) return;
 
-            if (selectedLetter === currentLetter) {
-                // Bonne réponse
-                letterDisplay.style.color = '#4CAF50';
-                letterDisplay.textContent = '✓';
-                errorsInRow = 0;
+            // Arrêter la séquence
+            isTestRunning = false;
 
-                // Réduire la taille pour la prochaine lettre
+            // Vérifier si la réponse est correcte
+            const correctLetter = document.getElementById('letterDisplay').textContent;
+            if (selectedLetter === correctLetter) {
+                // Bonne réponse: réduire la taille de 20%
                 currentFontSize = Math.max(MIN_FONT_SIZE, Math.round(currentFontSize * SIZE_ADJUSTMENT));
-                console.log(`Bonne réponse! Taille réduite à ${currentFontSize}px`);
+                document.getElementById('sizeInfo').textContent = `Taille lettre: ${currentFontSize} px`;
             } else {
-                // Mauvaise réponse
-                letterDisplay.style.color = '#F44336';
-                letterDisplay.textContent = '✗';
-                errorsInRow++;
+                // Mauvaise réponse: augmenter la taille de 10%
+                currentFontSize = Math.round(currentFontSize * SIZE_INCREASE);
+                errorCount++;
 
-                // Si 3 erreurs consécutives, arrêter le test
-                if (errorsInRow >= 3) {
-                    endTest();
-                    return;
-                }
-
-                // Augmenter la taille pour la prochaine lettre
-                currentFontSize = Math.min(MAX_FONT_SIZE, Math.round(currentFontSize * SIZE_INCREASE));
-                console.log(`Mauvaise réponse! Taille augmentée à ${currentFontSize}px`);
+                document.getElementById('errorCount').textContent = `Erreurs: ${errorCount}/3`;
             }
 
-            // Mettre à jour les affichages
-            sizeInfo.textContent = `Taille : ${currentFontSize} px`;
-            errorsInfo.textContent = `Erreurs : ${errorsInRow}`;
+            // Vérifier si on a atteint la limite d'erreurs
+            if (errorCount >= 3) {
+                endTest();
+                return;
+            }
 
-            // Attendre 1 seconde avant la prochaine lettre
+            // Recommencer après 1 seconde
             setTimeout(() => {
-                letterDisplay.style.color = 'white';
-                showNextLetter();
+                isTestRunning = true;
+                setTimeout(flashLetter, 500);
             }, 1000);
         }
 
-        // Arrêter le test
+        // Terminer le test
         function endTest() {
             isTestRunning = false;
-            prompt.textContent = "TEST TERMINÉ";
+            document.getElementById('prompt').textContent = "Test terminé !";
+            document.getElementById('validationButtons').style.display = 'none';
+
+            // Calculer le score d'acuité
+            const acuityScore = Math.min(1.0, REFERENCE_SIZE / currentFontSize);
 
             // Afficher les résultats
-            const acuityScore = calculateAcuityScore();
+            const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = `
                 <h2>Résultats</h2>
-                <p>Distance utilisée : ${distance} cm</p>
-                <p>Taille minimale atteinte : ${currentFontSize} px</p>
-                <p>Acuité visuelle estimée : ${acuityScore.toFixed(2)}/1.0</p>
-                <p>Erreurs consécutives : ${errorsInRow}</p>
+                <p>Taille minimale atteinte: ${currentFontSize} px</p>
+                <p>Score d'acuité: ${acuityScore.toFixed(2)}</p>
+                <p>Distance mesurée: ${faceDistance} cm</p>
+                <p>Évaluation: ${getAcuityEvaluation(acuityScore)}</p>
             `;
-
-            // Évaluation de l'acuité
-            let evaluation = '';
-            if (acuityScore >= 0.8) evaluation = "Excellente";
-            else if (acuityScore >= 0.6) evaluation = "Bonne";
-            else if (acuityScore >= 0.4) evaluation = "Moyenne";
-            else evaluation = "Faible";
-
-            resultsDiv.innerHTML += `<p>Évaluation : ${evaluation}</p>`;
 
             // Arrêter la caméra
             const video = document.querySelector('video');
@@ -377,9 +272,12 @@
             }
         }
 
-        // Calculer le score d'acuité
-        function calculateAcuityScore() {
-            return Math.min(1.0, REFERENCE_SIZE / currentFontSize);
+        // Évaluation de l'acuité
+        function getAcuityEvaluation(score) {
+            if (score >= 0.8) return "Excellente";
+            if (score >= 0.6) return "Bonne";
+            if (score >= 0.4) return "Moyenne";
+            return "Faible";
         }
     </script>
 </body>
