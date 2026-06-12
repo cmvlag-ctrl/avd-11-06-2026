@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test d'Acuité Flashée - Version Finale</title>
+    <title>Test d'Acuité Flashée - Avec Calibration de Distance</title>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -29,7 +30,7 @@
             border-radius: 10px;
             overflow: hidden;
             width: 100%;
-            max-width: 400px;
+            max-width: 600px;
             aspect-ratio: 4/3;
         }
         #video {
@@ -75,230 +76,293 @@
         .letterButton:hover {
             background: #45b7b8;
         }
-        #stats {
+        #results {
+            margin-top: 20px;
             font-size: 20px;
-            margin: 20px 0;
-            background: rgba(0,0,0,0.5);
-            padding: 15px;
-            border-radius: 8px;
+            min-height: 100px;
         }
         #startButton {
-            background: #4ecdc4;
+            background: #4CAF50;
             border: none;
             padding: 15px 30px;
             font-size: 20px;
-            border-radius: 10px;
+            border-radius: 8px;
             cursor: pointer;
-            margin-top: 20px;
-            font-weight: bold;
+            margin-bottom: 20px;
         }
-        .hidden { display: none; }
-        .correct { color: #0f0; }
-        .incorrect { color: #f55; }
-        #finalResult {
-            font-size: 28px;
-            margin: 20px 0;
-            background: rgba(0,0,0,0.7);
-            padding: 20px;
-            border-radius: 10px;
-            display: none;
+        #distanceInfo {
+            font-size: 16px;
+            margin: 10px 0;
+            color: #ccc;
         }
     </style>
 </head>
 <body>
     <div id="testContainer">
         <h1>Test d'Acuité Visuelle Flashée</h1>
-        <p>Identifiez les lettres qui apparaissent brièvement (60 ms)</p>
+        <p>Placez votre visage à une distance confortable de la caméra (environ 50 cm).</p>
+
+        <button id="startButton">DÉMARRER LE TEST</button>
+
+        <div id="distanceInfo">Distance estimée : -- cm</div>
 
         <div id="videoContainer">
-            <video id="video" playsinline autoplay muted></video>
+            <video id="video" autoplay muted></video>
             <div id="letterDisplay"></div>
         </div>
 
-        <div id="prompt">Cliquez sur "DÉMARRER" pour commencer</div>
-        <div id="finalResult"></div>
+        <div id="prompt">Préparez-vous...</div>
 
-        <div id="validationButtons" class="hidden">
-            <button class="letterButton" data-letter="A">A</button>
-            <button class="letterButton" data-letter="C">C</button>
-            <button class="letterButton" data-letter="D">D</button>
-            <button class="letterButton" data-letter="F">F</button>
-            <button class="letterButton" data-letter="H">H</button>
-            <button class="letterButton" data-letter="L">L</button>
-            <button class="letterButton" data-letter="N">N</button>
-            <button class="letterButton" data-letter="O">O</button>
-            <button class="letterButton" data-letter="P">P</button>
-            <button class="letterButton" data-letter="T">T</button>
-            <button class="letterButton" data-letter="U">U</button>
-            <button class="letterButton" data-letter="V">V</button>
-            <button class="letterButton" data-letter="Z">Z</button>
+        <div id="validationButtons" style="display: none;">
+            <!-- Boutons générés dynamiquement -->
         </div>
 
-        <div id="stats" class="hidden">
-            <strong>Score : </strong><span id="score">0/0 (0%)</span><br>
-            <strong>Taille actuelle : </strong><span id="currentSize">--</span>
-        </div>
-
-        <button id="startButton">DÉMARRER LE TEST</button>
+        <div id="results"></div>
     </div>
 
     <script>
-        // --- CONFIGURATION ---
-        const letters = ["A", "C", "D", "F", "H", "L", "N", "O", "P", "T", "U", "V", "Z"];
-        let testRunning = false;
-        let correctAnswers = 0;
-        let totalQuestions = 0;
-        let currentLetter = "";
-        let isWaitingForAnswer = false;
-        let errorsConsecutives = 0;
-        let currentFontSize = 300; // Taille initiale maximale
-        const MIN_FONT_SIZE = 20; // Taille minimale avant d'arrêter le test
+        // Configuration
+        const FLASH_DURATION = 60; // ms
+        const MIN_FONT_SIZE = 20; // Taille minimale des lettres (px)
+        const MAX_FONT_SIZE = 400; // Taille maximale des lettres (px)
+        const TARGET_ACUITY = 1.0; // Acuité cible (1.0 = 20/20)
+        const FACE_REAL_WIDTH = 15; // Largeur réelle moyenne d'un visage (cm)
+        const EYE_DISTANCE = 6.5; // Distance moyenne entre les yeux (cm)
 
-        // --- ÉLÉMENTS DOM ---
-        const letterDisplay = document.getElementById('letterDisplay');
-        const prompt = document.getElementById('prompt');
-        const stats = document.getElementById('stats');
-        const startButton = document.getElementById('startButton');
-        const video = document.getElementById('video');
-        const validationButtons = document.getElementById('validationButtons');
-        const scoreDisplay = document.getElementById('score');
-        const currentSizeDisplay = document.getElementById('currentSize');
-        const finalResult = document.getElementById('finalResult');
+        // Variables globales
+        let video;
+        let letterDisplay;
+        let validationButtons;
+        let prompt;
+        let distanceInfo;
+        let resultsDiv;
+        let startButton;
+        let currentFontSize = MAX_FONT_SIZE;
+        let errorsInRow = 0;
+        let currentLetter = '';
+        let isTestRunning = false;
+        let faceDetector;
+        let distance = 50; // Distance estimée par défaut (cm)
 
-        // --- INITIALISATION ---
-        startButton.addEventListener('click', startTest);
-        validationButtons.querySelectorAll('.letterButton').forEach(button => {
-            button.addEventListener('click', () => handleAnswer(button.dataset.letter));
+        // Lettres disponibles
+        const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'H', 'K', 'L', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'X', 'Z'];
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', async () => {
+            video = document.getElementById('video');
+            letterDisplay = document.getElementById('letterDisplay');
+            validationButtons = document.getElementById('validationButtons');
+            prompt = document.getElementById('prompt');
+            distanceInfo = document.getElementById('distanceInfo');
+            resultsDiv = document.getElementById('results');
+            startButton = document.getElementById('startButton');
+
+            // Charger les modèles de détection de visage
+            await loadFaceModels();
+
+            // Configurer le bouton de démarrage
+            startButton.addEventListener('click', startTest);
+
+            // Initialiser les boutons de validation
+            setupValidationButtons();
         });
 
-        // --- DÉMARRER LE TEST ---
+        // Charger les modèles de face-api.js
+        async function loadFaceModels() {
+            await faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+            await faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+            console.log("Modèles de détection de visage chargés");
+        }
+
+        // Démarrer le test
         async function startTest() {
+            startButton.disabled = true;
+            prompt.textContent = "Calibration de la distance...";
+
+            // Démarrer la caméra
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: 400, height: 300 }
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 video.srcObject = stream;
-                video.play();
 
-                startButton.classList.add('hidden');
-                validationButtons.classList.remove('hidden');
-                stats.classList.remove('hidden');
-                finalResult.style.display = 'none';
-                prompt.textContent = "Regardez l'écran...";
-                testRunning = true;
-                isWaitingForAnswer = false;
-                correctAnswers = 0;
-                totalQuestions = 0;
-                errorsConsecutives = 0;
-                currentFontSize = 300;
-                updateSizeDisplay();
+                // Attendre que la caméra soit prête
+                await new Promise(resolve => video.onloadedmetadata = resolve);
 
-                // Afficher la première lettre après 1 seconde
-                setTimeout(showNextLetter, 1000);
+                // Démarrer la calibration de distance
+                startDistanceCalibration();
+
+                // Après 3 secondes, lancer le test
+                setTimeout(() => {
+                    isTestRunning = true;
+                    prompt.textContent = "Test en cours...";
+                    showNextLetter();
+                }, 3000);
 
             } catch (err) {
-                prompt.innerHTML = `<span class="incorrect">Erreur caméra : ${err.message}</span>`;
-                console.error("Erreur caméra:", err);
+                console.error("Erreur accès caméra:", err);
+                prompt.textContent = "Erreur: Accès caméra refusé";
             }
         }
 
-        // --- METTRE À JOUR L'AFFICHAGE DE LA TAILLE ---
-        function updateSizeDisplay() {
-            currentSizeDisplay.textContent = `${currentFontSize}px`;
+        // Démarrer la calibration de distance
+        function startDistanceCalibration() {
+            // Mettre à jour la distance toutes les 500ms
+            const interval = setInterval(async () => {
+                const detection = await detectFace();
+                if (detection) {
+                    distance = calculateDistance(detection);
+                    distanceInfo.textContent = `Distance estimée : ${Math.round(distance)} cm`;
+
+                    // Adapter la taille des lettres en fonction de la distance
+                    currentFontSize = calculateOptimalFontSize(distance);
+                    letterDisplay.style.fontSize = `${currentFontSize}px`;
+                }
+            }, 500);
+
+            // Arrêter la calibration après 10 secondes
+            setTimeout(() => {
+                clearInterval(interval);
+                if (isTestRunning) {
+                    prompt.textContent = "Test démarré!";
+                }
+            }, 10000);
         }
 
-        // --- AFFICHER UNE NOUVELLE LETTRE ---
+        // Détecter le visage
+        async function detectFace() {
+            if (!video.videoWidth) return null;
+
+            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                .withFaceLandmarks();
+
+            return detections[0] || null;
+        }
+
+        // Calculer la distance caméra/visage
+        function calculateDistance(detection) {
+            // Utiliser la distance entre les yeux
+            const landmarks = detection.landmarks;
+            const leftEye = landmarks.getLeftEye();
+            const rightEye = landmarks.getRightEye();
+
+            // Calculer la distance en pixels entre les yeux
+            const eyeDistancePixels = Math.sqrt(
+                Math.pow(rightEye[0].x - leftEye[0].x, 2) +
+                Math.pow(rightEye[0].y - leftEye[0].y, 2)
+            );
+
+            // Estimer la distance en cm
+            // Formule : distance = (taille_réelle / taille_pixels) * taille_écran
+            // On utilise la distance moyenne entre les yeux (6.5 cm)
+            const estimatedDistance = (EYE_DISTANCE * video.videoWidth) / (eyeDistancePixels * video.offsetWidth);
+
+            return Math.max(20, Math.min(100, estimatedDistance)); // Limiter entre 20 et 100 cm
+        }
+
+        // Calculer la taille optimale des lettres en fonction de la distance
+        function calculateOptimalFontSize(distanceCm) {
+            // Formule : taille_px = (distance_cm * facteur) / acuité
+            // Le facteur 0.0145 correspond à l'angle visuel minimal pour 20/20 vision
+            const heightCm = (distanceCm * 0.0145) / TARGET_ACUITY;
+            const heightPx = (heightCm / 2.54) * 96; // 96 DPI (résolution standard)
+            return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(heightPx)));
+        }
+
+        // Afficher la prochaine lettre
         function showNextLetter() {
-            if (!testRunning) return;
+            if (!isTestRunning) return;
 
-            // Choisir une lettre aléatoire
+            // Générer une lettre aléatoire
             currentLetter = letters[Math.floor(Math.random() * letters.length)];
-
-            // Afficher la lettre pendant 60 ms
-            letterDisplay.innerText = currentLetter;
-            letterDisplay.style.fontSize = `${currentFontSize}px`;
+            letterDisplay.textContent = currentLetter;
             letterDisplay.style.opacity = '1';
 
-            // Masquer après 60 ms
+            // Masquer après 60ms
             setTimeout(() => {
                 letterDisplay.style.opacity = '0';
-                isWaitingForAnswer = true;
-                prompt.innerHTML = `<span class="incorrect">Quelle lettre avez-vous vue ?</span>`;
-            }, 60);
+
+                // Afficher les boutons de validation après le flash
+                setTimeout(() => {
+                    validationButtons.style.display = 'flex';
+                    prompt.textContent = "Quelle lettre avez-vous vue ?";
+                }, 10); // Petit délai pour éviter les clics accidentels
+            }, FLASH_DURATION);
         }
 
-        // --- GESTION DES RÉPONSES ---
-        function handleAnswer(selectedLetter) {
-            if (!testRunning || !isWaitingForAnswer) return;
+        // Configurer les boutons de validation
+        function setupValidationButtons() {
+            validationButtons.innerHTML = '';
+            letters.forEach(letter => {
+                const button = document.createElement('button');
+                button.className = 'letterButton';
+                button.textContent = letter;
+                button.addEventListener('click', () => validateAnswer(letter));
+                validationButtons.appendChild(button);
+            });
+        }
 
-            totalQuestions++;
-            isWaitingForAnswer = false;
+        // Valider la réponse
+        function validateAnswer(selectedLetter) {
+            validationButtons.style.display = 'none';
 
             if (selectedLetter === currentLetter) {
-                correctAnswers++;
-                prompt.innerHTML = `<span class="correct" style="font-size: 28px;">✅ CORRECT !</span>`;
-                errorsConsecutives = 0;
-
-                // Réduire la taille de la lettre pour le prochain test
-                currentFontSize = Math.max(currentFontSize - 20, MIN_FONT_SIZE);
-                updateSizeDisplay();
+                // Bonne réponse
+                letterDisplay.style.color = '#4CAF50';
+                letterDisplay.textContent = '✓';
+                errorsInRow = 0;
             } else {
-                prompt.innerHTML = `<span class="incorrect" style="font-size: 28px;">❌ FAUX ! C'était : ${currentLetter}</span>`;
-                errorsConsecutives++;
+                // Mauvaise réponse
+                letterDisplay.style.color = '#F44336';
+                letterDisplay.textContent = '✗';
+                errorsInRow++;
 
-                // Augmenter légèrement la taille après une erreur
-                currentFontSize = Math.min(currentFontSize + 30, 300);
-                updateSizeDisplay();
+                // Si 3 erreurs consécutives, arrêter le test
+                if (errorsInRow >= 3) {
+                    endTest();
+                    return;
+                }
             }
 
-            // Mettre à jour les statistiques
-            const accuracy = Math.round((correctAnswers / totalQuestions) * 100);
-            scoreDisplay.textContent = `${correctAnswers}/${totalQuestions} (${accuracy}%)`;
-
-            // Vérifier si on a atteint 3 erreurs consécutives
-            if (errorsConsecutives >= 3) {
-                endTest();
-                return;
-            }
-
-            // Désactiver les boutons pendant 2 secondes
-            validationButtons.querySelectorAll('.letterButton').forEach(button => {
-                button.disabled = true;
-            });
-
-            // Attendre 2 secondes avant de montrer la prochaine lettre
+            // Attendre 2 secondes avant la prochaine lettre
             setTimeout(() => {
-                prompt.textContent = "Prêt pour la prochaine lettre...";
-                validationButtons.querySelectorAll('.letterButton').forEach(button => {
-                    button.disabled = false;
-                });
                 showNextLetter();
             }, 2000);
         }
 
-        // --- ARRÊTER LE TEST ---
+        // Arrêter le test
         function endTest() {
-            testRunning = false;
-
-            // Calculer le résultat final
-            const resultText = document.createElement('div');
-            resultText.innerHTML = `
-                <strong>TEST TERMINÉ</strong><br>
-                <strong>Taille minimale identifiable :</strong> ${currentFontSize}px<br>
-                <strong>Score final :</strong> ${correctAnswers}/${totalQuestions} (${Math.round((correctAnswers / totalQuestions) * 100)}%)<br>
-                <strong>Acuité flashée :</strong> ${currentFontSize <= 40 ? "Excellente" : currentFontSize <= 80 ? "Bonne" : currentFontSize <= 120 ? "Moyenne" : "Faible"}
-            `;
-            resultText.style.color = '#4ecdc4';
-            resultText.style.fontSize = '24px';
-
-            finalResult.innerHTML = '';
-            finalResult.appendChild(resultText);
-            finalResult.style.display = 'block';
+            isTestRunning = false;
+            prompt.textContent = "TEST TERMINÉ";
 
             // Arrêter la caméra
             if (video.srcObject) {
                 video.srcObject.getTracks().forEach(track => track.stop());
             }
+
+            // Afficher les résultats
+            const acuityScore = calculateAcuityScore();
+            resultsDiv.innerHTML = `
+                <h2>Résultats</h2>
+                <p>Distance utilisée : ${Math.round(distance)} cm</p>
+                <p>Taille minimale des lettres : ${currentFontSize} px</p>
+                <p>Acuité visuelle estimée : ${acuityScore.toFixed(1)}/1.0</p>
+                <p>Performance : ${Math.round((1 - errorsInRow/letters.length) * 100)}%</p>
+            `;
+
+            // Évaluation de l'acuité
+            let evaluation = '';
+            if (acuityScore >= 0.8) evaluation = "Excellente";
+            else if (acuityScore >= 0.6) evaluation = "Bonne";
+            else if (acuityScore >= 0.4) evaluation = "Moyenne";
+            else evaluation = "Faible";
+
+            resultsDiv.innerHTML += `<p>Évaluation : ${evaluation}</p>`;
+        }
+
+        // Calculer le score d'acuité
+        function calculateAcuityScore() {
+            // Plus la taille minimale est petite, meilleure est l'acuité
+            // On normalise par rapport à la taille maximale
+            return Math.min(1.0, MAX_FONT_SIZE / currentFontSize);
         }
     </script>
 </body>
