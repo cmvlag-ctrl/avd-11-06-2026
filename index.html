@@ -3,292 +3,1028 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Test AV - Détection Avancée</title>
+    <meta name="description" content="Test d'acuité visuelle avec détection de mouvement">
+    <title>Test AV Pro - Détection Avancée</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; color: white; }
+        :root {
+            --primary-color: #4ecdc4;
+            --secondary-color: #555;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+        }
+
+        body {
+            margin: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: white;
+            touch-action: manipulation;
+        }
+
         video {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover; opacity: 0.2; z-index: 1; transform: scaleX(-1);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.2;
+            z-index: 1;
+            transform: scaleX(-1);
+            background: #000;
         }
+
         #letterDisplay {
-            position: absolute; top: 50%; left: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 100px; font-weight: bold; color: white;
-            opacity: 0; z-index: 10; pointer-events: none;
-            text-shadow: 0 0 10px black;
+            font-size: 100px;
+            font-weight: bold;
+            color: white;
+            opacity: 0;
+            z-index: 10;
+            pointer-events: none;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.7), 0 0 5px black;
+            transition: opacity 0.1s ease-out;
         }
+
         #ui {
-            position: absolute; top: 10px; left: 10px; z-index: 20;
-            background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px;
-            max-width: 300px;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 320px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         }
-        .stat { font-size: 12px; margin: 2px 0; color: #0f0; font-family: monospace; }
-        .error { color: #f55; }
-        
+
+        .stat {
+            font-size: 13px;
+            margin: 4px 0;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .stat-label {
+            color: #aaa;
+            margin-right: 8px;
+        }
+
+        .stat-value {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .error {
+            color: var(--danger-color);
+            font-weight: bold;
+            margin: 10px 0;
+            padding: 8px;
+            background: rgba(220, 53, 69, 0.1);
+            border-radius: 4px;
+        }
+
+        .warning {
+            color: var(--warning-color);
+            font-weight: bold;
+            margin: 10px 0;
+            padding: 8px;
+            background: rgba(255, 193, 7, 0.1);
+            border-radius: 4px;
+        }
+
         /* Jauge de vitesse */
-        .speed-gauge {
-            height: 6px; background: #333; margin-top: 5px; border-radius: 3px; overflow: hidden;
+        .speed-gauge-container {
+            margin: 10px 0;
         }
+
+        .speed-gauge {
+            height: 8px;
+            background: #333;
+            margin-top: 4px;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .speed-gauge::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #0f0, #ff0, #f00);
+            opacity: 0.7;
+        }
+
         .speed-bar {
-            height: 100%; width: 0%; background: linear-gradient(90deg, #0f0, #ff0, #f00);
-            transition: width 0.1s linear;
+            height: 100%;
+            width: 0%;
+            background: transparent;
+            transition: width 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .speed-bar.warning {
+            background: repeating-linear-gradient(
+                90deg,
+                #ff0,
+                #ff0 10px,
+                #f00 10px,
+                #f00 20px
+            );
         }
 
         button {
-            background: #4ecdc4; border: none; padding: 10px; border-radius: 5px;
-            cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px;
+            background: var(--primary-color);
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 8px;
+            font-size: 14px;
+            transition: all 0.2s ease;
         }
-        button.secondary { background: #555; color: white; }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        button.success {
+            background: var(--success-color);
+        }
+
         #startOverlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 100; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; text-align: center; padding: 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #000 0%, #1a1a2e 100%);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            opacity: 1;
+            transition: opacity 0.5s ease;
         }
+
+        #startOverlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #startOverlay h1 {
+            font-size: 2.5rem;
+            margin: 0 0 10px 0;
+            background: linear-gradient(90deg, var(--primary-color), #fff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        #startOverlay p {
+            font-size: 1.2rem;
+            margin: 0 0 30px 0;
+            color: #ccc;
+        }
+
+        #errorMsg {
+            min-height: 24px;
+            font-size: 14px;
+        }
+
         #calibPanel {
-            display: none; margin-top: 10px; padding-top: 10px;
-            border-top: 1px solid #444; text-align: center;
+            display: none;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
         }
+
         .calib-bar-container {
-            height: 20px; border: 1px dashed #666; margin: 10px auto;
-            display: flex; justify-content: center; align-items: center; width: 12mm;
+            height: 25px;
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            margin: 15px auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 15mm;
+            background: rgba(0, 0, 0, 0.3);
         }
-        .calib-bar { height: 100%; background: red; width: 10mm; transform-origin: center; }
+
+        .calib-bar {
+            height: 100%;
+            background: var(--danger-color);
+            width: 12mm;
+            transform-origin: center;
+            transition: transform 0.1s ease;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 8px 0;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background: #666;
+        }
+
+        .status-ready .status-indicator {
+            background: var(--success-color);
+            box-shadow: 0 0 8px var(--success-color);
+        }
+
+        .status-warning .status-indicator {
+            background: var(--warning-color);
+            box-shadow: 0 0 8px var(--warning-color);
+        }
+
+        .status-error .status-indicator {
+            background: var(--danger-color);
+            box-shadow: 0 0 8px var(--danger-color);
+        }
     </style>
 </head>
 <body>
 
     <div id="startOverlay">
         <h1>Test Acuité (Pro)</h1>
-        <p>Détection de vitesse optimisée.</p>
-        <button onclick="startApp()">DÉMARRER</button>
+        <p>Détection de vitesse optimisée pour évaluer votre acuité visuelle</p>
+        <button id="startBtn" onclick="startApp()">
+            <span class="loading-spinner hidden" id="spinner"></span>
+            <span id="btnText">DÉMARRER LE TEST</span>
+        </button>
         <p id="errorMsg" class="error"></p>
+        <div id="browserWarning" class="warning hidden">
+            <strong>⚠️ Navigateur non supporté</strong><br>
+            Pour une expérience optimale, utilisez Chrome, Firefox ou Edge (version récente).
+        </div>
     </div>
 
     <video id="video" playsinline autoplay muted></video>
     <div id="letterDisplay">A</div>
 
-    <div id="ui" style="display:none;">
-        <div class="stat" id="statusInit">Initialisation...</div>
-        <div class="stat" id="statusSpeed">Vitesse: 0</div>
-        <!-- Jauge visuelle -->
-        <div class="speed-gauge"><div class="speed-bar" id="speedBar"></div></div>
-        
-        <div class="stat" id="statusDist" style="margin-top:5px;">Distance: -- cm</div>
-        <div class="stat" id="statusSize">Taille: -- px</div>
-        
-        <hr style="border-color:#333; margin: 5px 0;">
-        
-        <div style="font-size:11px; margin-bottom:5px;">
-            Acuité: <span id="valAcuity">1.0</span>
-            <input type="range" id="acuity" min="0.1" max="2.0" step="0.1" value="1.0" oninput="updateParams()" style="width:100%; margin:0;">
+    <div id="ui" class="hidden">
+        <div class="stat status-ready" id="statusInit">
+            <span class="stat-label">Statut:</span>
+            <span class="stat-value" id="initStatus">Prêt</span>
         </div>
 
-        <button class="secondary" onclick="toggleCalib()">📏 Calibrer l'écran</button>
+        <div class="stat" id="statusSpeed">
+            <span class="stat-label">Vitesse:</span>
+            <span class="stat-value" id="speedValue">0</span>
+        </div>
+
+        <div class="speed-gauge-container">
+            <div class="speed-gauge"><div class="speed-bar" id="speedBar"></div></div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 2px;">
+                <span>0</span>
+                <span>150</span>
+                <span>300</span>
+            </div>
+        </div>
+
+        <div class="stat" id="statusDist">
+            <span class="stat-label">Distance:</span>
+            <span class="stat-value" id="distValue">-- cm</span>
+        </div>
+
+        <div class="stat" id="statusSize">
+            <span class="stat-label">Taille lettre:</span>
+            <span class="stat-value" id="sizeValue">-- px</span>
+        </div>
+
+        <div class="stat" id="statusFPS">
+            <span class="stat-label">Perf:</span>
+            <span class="stat-value" id="fpsValue">0 FPS</span>
+        </div>
+
+        <hr style="border-color: rgba(255, 255, 255, 0.1); margin: 12px 0;">
+
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <label for="acuity" style="font-size: 12px;">Acuité visuelle:</label>
+                <span id="valAcuity" style="font-weight: bold;">1.0</span>
+            </div>
+            <input type="range" id="acuity" min="0.1" max="2.0" step="0.1" value="1.0" oninput="updateParams()">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-top: 2px;">
+                <span>0.1</span>
+                <span>1.0</span>
+                <span>2.0</span>
+            </div>
+        </div>
+
+        <button class="secondary" onclick="toggleCalib()">
+            <span>📏</span> Calibrer l'écran
+        </button>
 
         <div id="calibPanel">
-            <p style="font-size:11px; margin:0; color:#ddd;">Ajustez la barre rouge à <b>1 cm</b> avec une règle.</p>
+            <p style="font-size: 12px; margin: 0 0 12px 0; color: #ddd;">
+                Ajustez la barre rouge à <strong>1 cm</strong> avec une règle physique.
+            </p>
             <div class="calib-bar-container">
                 <div class="calib-bar" id="calibBar"></div>
             </div>
-            <input type="range" id="calibSlider" min="0.5" max="2.0" step="0.05" value="1.0" oninput="updateCalib()" style="width:100%;">
-            <button onclick="saveCalib()" style="background:#28a745; margin-top:5px;">Sauvegarder</button>
+            <input type="range" id="calibSlider" min="0.5" max="2.0" step="0.01" value="1.0" oninput="updateCalib()">
+            <button class="success" onclick="saveCalib()" style="margin-top: 12px;">
+                <span>✓</span> Sauvegarder la calibration
+            </button>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script>
-
     <script>
+        // =============================================
+        // CONSTANTES ET CONFIGURATION
+        // =============================================
+        const APP_VERSION = "3.2.1";
+        const MIN_CAMERA_WIDTH = 640;
+        const MIN_CAMERA_HEIGHT = 480;
+        const TARGET_FPS = 30;
+        const MAX_FRAME_DELAY_MS = 1000 / TARGET_FPS;
+        const MIN_SPEED_TRIGGER = 150;
+        const FLASH_DURATION_MS = 60;
+        const COOLDOWN_DURATION_MS = 1000;
+        const DISTANCE_SMOOTHING = 0.9;
+        const SPEED_SMOOTHING = 0.7;
+        const K_FACTOR = 2800; // Constante pour calcul de distance
+        const BASE_DPI = 300; // DPI de base pour calcul de taille
+
+        // =============================================
+        // VARIABLES GLOBALES
+        // =============================================
         let model = null;
-        let video = document.getElementById('video');
-        let letterEl = document.getElementById('letterDisplay');
-        let ui = document.getElementById('ui');
-        let overlay = document.getElementById('startOverlay');
+        let video = null;
+        let letterEl = null;
+        let ui = null;
+        let overlay = null;
+        let spinner = null;
+        let btnText = null;
+        let browserWarning = null;
 
         // Paramètres
-        let acuity = 1.0; 
-        let screenDPI = 300; 
-        let calibrationFactor = 1.0; 
+        let acuity = 1.0;
+        let screenDPI = BASE_DPI;
+        let calibrationFactor = 1.0;
 
         // Tracking
         let lastHeadPos = null;
         let lastTime = 0;
         let speed = 0;
-        let smoothedSpeed = 0; // Vitesse lissée pour l'affichage
-        let distance = 50; 
+        let smoothedSpeed = 0;
+        let distance = 50;
         let rawDistance = 50;
-        let state = 'IDLE'; 
+        let state = 'IDLE';
         let lastFlashTime = 0;
-        const letters = "C D F H L N O P T U V Z".split(" ");
+        let frameCount = 0;
+        let lastFpsUpdate = 0;
+        let fps = 0;
+        let isAppRunning = false;
+        let isVideoPlaying = false;
+        let faceDetectionActive = false;
 
-        // --- CALIBRATION ---
-        function toggleCalib() {
-            const panel = document.getElementById('calibPanel');
-            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-        }
-        function updateCalib() {
-            calibrationFactor = parseFloat(document.getElementById('calibSlider').value);
-            document.getElementById('calibBar').style.transform = `scaleX(${calibrationFactor})`;
-        }
-        function saveCalib() {
-            localStorage.setItem('avd_blazeface_calib_v3', calibrationFactor);
-            document.getElementById('calibPanel').style.display = 'none';
-            updateStats();
-        }
-        function loadCalib() {
-            const saved = localStorage.getItem('avd_blazeface_calib_v3');
-            if (saved) {
-                calibrationFactor = parseFloat(saved);
-                document.getElementById('calibSlider').value = calibrationFactor;
-                updateCalib();
-            }
-        }
+        // Liste de lettres standard
+        const LETTERS = "C D F H L N O P T U V Z".split(" ");
+        const LETTER_SIZE_RANGE = { min: 20, max: 300 };
 
-        // --- DÉMARRAGE ---
-        async function startApp() {
-            loadCalib();
+        // =============================================
+        // FONCTIONS D'INITIALISATION
+        // =============================================
+
+        function initElements() {
             try {
-                // On force une résolution correcte pour la stabilité
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
-                });
-                video.srcObject = stream;
-                video.onloadedmetadata = async () => {
-                    overlay.style.display = 'none';
-                    ui.style.display = 'block';
-                    video.play();
-                    document.getElementById('statusInit').innerText = "Chargement IA...";
-                    model = await blazeface.load();
-                    document.getElementById('statusInit').innerText = "Prêt !";
-                    
-                    const dpr = window.devicePixelRatio || 1;
-                    let baseDPI = dpr > 2 ? 450 : (dpr > 1 ? 300 : 150);
-                    screenDPI = baseDPI * calibrationFactor; 
-                    loop();
-                };
+                video = document.getElementById('video');
+                letterEl = document.getElementById('letterDisplay');
+                ui = document.getElementById('ui');
+                overlay = document.getElementById('startOverlay');
+                spinner = document.getElementById('spinner');
+                btnText = document.getElementById('btnText');
+                browserWarning = document.getElementById('browserWarning');
+
+                // Vérification des éléments critiques
+                if (!video || !letterEl || !ui || !overlay) {
+                    throw new Error("Éléments DOM manquants");
+                }
+
+                console.log(`[AV Pro v${APP_VERSION}] Initialisation des éléments terminée`);
             } catch (err) {
-                document.getElementById('errorMsg').innerText = "Erreur Caméra : " + err.message;
+                showError(`Initialisation échouée: ${err.message}`);
+                console.error("[AV Pro] Erreur d'initialisation:", err);
             }
         }
 
-        // --- BOUCLE PRINCIPALE ---
+        function loadSettings() {
+            try {
+                // Charger la calibration
+                const savedCalib = localStorage.getItem('avd_blazeface_calib_v3');
+                if (savedCalib) {
+                    calibrationFactor = parseFloat(savedCalib);
+                    document.getElementById('calibSlider').value = calibrationFactor;
+                    updateCalib();
+                }
+
+                // Charger l'acuité
+                const savedAcuity = localStorage.getItem('avd_acuity_v1');
+                if (savedAcuity) {
+                    acuity = parseFloat(savedAcuity);
+                    document.getElementById('acuity').value = acuity;
+                    updateParams();
+                }
+
+                console.log(`[AV Pro] Paramètres chargés: acuité=${acuity}, calibration=${calibrationFactor}`);
+            } catch (err) {
+                console.warn("[AV Pro] Impossible de charger les paramètres:", err);
+            }
+        }
+
+        // =============================================
+        // GESTION DE LA CAMÉRA
+        // =============================================
+
+        async function startCamera() {
+            try {
+                // Vérification des permissions caméra
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("API getUserMedia non supportée");
+                }
+
+                // Vérification des permissions
+                const permission = await navigator.permissions.query({ name: 'camera' });
+                if (permission.state === 'denied') {
+                    throw new Error("Permission caméra refusée par l'utilisateur");
+                }
+
+                // Configuration optimisée pour la stabilité
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'user',
+                        width: { ideal: MIN_CAMERA_WIDTH },
+                        height: { ideal: MIN_CAMERA_HEIGHT },
+                        frameRate: { ideal: TARGET_FPS }
+                    },
+                    audio: false
+                });
+
+                video.srcObject = stream;
+                isVideoPlaying = false;
+
+                // Attendre que la vidéo soit prête
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        video.play().then(() => {
+                            isVideoPlaying = true;
+                            resolve();
+                        }).catch(err => {
+                            throw new Error(`Erreur de lecture vidéo: ${err.message}`);
+                        });
+                    };
+                });
+
+                // Calcul du DPI basé sur la résolution et le devicePixelRatio
+                const dpr = window.devicePixelRatio || 1;
+                screenDPI = BASE_DPI * calibrationFactor;
+
+                console.log(`[AV Pro] Caméra démarrée: ${video.videoWidth}x${video.videoHeight} @ ${dpr}x DPR`);
+                return true;
+
+            } catch (err) {
+                showError(`Erreur caméra: ${err.message}`);
+                console.error("[AV Pro] Erreur caméra:", err);
+
+                // Afficher un avertissement si le navigateur est trop ancien
+                if (err.name === 'NotAllowedError' || err.name === 'NotReadableError') {
+                    browserWarning.classList.remove('hidden');
+                }
+
+                return false;
+            }
+        }
+
+        function stopCamera() {
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                isVideoPlaying = false;
+                console.log("[AV Pro] Caméra arrêtée");
+            }
+        }
+
+        // =============================================
+        // GESTION DE L'IA (BlazeFace)
+        // =============================================
+
+        async function loadModel() {
+            try {
+                updateInitStatus("Chargement du modèle IA...", "loading");
+
+                // Chargement avec timeout
+                const loadPromise = blazeface.load();
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Timeout de chargement du modèle")), 30000)
+                );
+
+                model = await Promise.race([loadPromise, timeoutPromise]);
+
+                updateInitStatus("Modèle chargé avec succès", "success");
+                console.log("[AV Pro] Modèle Blazeface chargé");
+                return true;
+
+            } catch (err) {
+                showError(`Échec du chargement du modèle: ${err.message}`);
+                updateInitStatus(`Erreur IA: ${err.message}`, "error");
+                console.error("[AV Pro] Erreur de chargement du modèle:", err);
+                return false;
+            }
+        }
+
+        // =============================================
+        // BOUCLE PRINCIPALE
+        // =============================================
+
         async function loop() {
-            if (!model) return;
+            if (!isAppRunning || !model || !isVideoPlaying) {
+                return;
+            }
 
-            const predictions = await model.estimateFaces(video, false);
+            try {
+                const now = performance.now();
+                frameCount++;
 
-            if (predictions.length > 0) {
-                const face = predictions[0];
-                // Landmark 2 = Nez (point le plus stable au centre)
-                const nose = face.landmarks[2];
+                // Calcul des FPS
+                if (now - lastFpsUpdate >= 1000) {
+                    fps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
+                    frameCount = 0;
+                    lastFpsUpdate = now;
+                    updateStats();
+                }
+
+                // Vérification de la performance
+                if (fps < TARGET_FPS * 0.8) {
+                    console.warn(`[AV Pro] FPS bas: ${fps} (cible: ${TARGET_FPS})`);
+                }
+
+                // Détection du visage
+                const predictions = await detectFace();
+
+                if (predictions && predictions.length > 0) {
+                    processFacePrediction(predictions[0], now);
+                } else {
+                    // Pas de visage détecté - décélération progressive
+                    smoothedSpeed = smoothedSpeed * 0.95;
+                    speed = smoothedSpeed * 1000;
+                    distance = Math.max(30, Math.min(120, distance * 0.98));
+                }
+
+                // Gestion de l'état
+                handleState(speed, now);
+
+                // Mise à jour de l'interface
+                updateStats();
+
+                // Boucle suivante
+                requestAnimationFrame(loop);
+
+            } catch (err) {
+                console.error("[AV Pro] Erreur dans la boucle principale:", err);
+                showError(`Erreur système: ${err.message}`);
+            }
+        }
+
+        async function detectFace() {
+            try {
+                // Vérification de la vidéo
+                if (!video || video.readyState !== 4) {
+                    throw new Error("Vidéo non prête");
+                }
+
+                // Estimation avec timeout
+                const detectPromise = model.estimateFaces(video, false);
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Timeout détection")), 500)
+                );
+
+                return await Promise.race([detectPromise, timeoutPromise]);
+
+            } catch (err) {
+                console.warn("[AV Pro] Erreur détection:", err.message);
+                return null;
+            }
+        }
+
+        function processFacePrediction(face, now) {
+            try {
+                // Validation des landmarks
+                if (!face.landmarks || face.landmarks.length < 3) {
+                    throw new Error("Landmarks insuffisants");
+                }
+
+                const nose = face.landmarks[2]; // Nez
                 const leftEye = face.landmarks[0];
                 const rightEye = face.landmarks[1];
 
-                // 1. DISTANCE
-                const distInterYeuxPx = Math.sqrt(
-                    Math.pow(rightEye[0] - leftEye[0], 2) + 
-                    Math.pow(rightEye[1] - leftEye[1], 2)
-                );
-                const K_FACTOR = 2800; 
+                // 1. Calcul de la distance (inter-oculaire)
+                const distInterYeuxPx = calculateDistance(leftEye, rightEye);
                 if (distInterYeuxPx > 5) {
-                    let calculatedDist = K_FACTOR / distInterYeuxPx;
+                    const calculatedDist = K_FACTOR / distInterYeuxPx;
                     rawDistance = calculatedDist;
-                    // Lissage fort de la distance (elle ne change pas vite)
-                    distance = (distance * 0.9) + (rawDistance * 0.1);
+
+                    // Lissage de la distance avec limites
+                    distance = (distance * DISTANCE_SMOOTHING) + (rawDistance * (1 - DISTANCE_SMOOTHING));
                     distance = Math.max(30, Math.min(120, distance));
                 }
 
-                // 2. VITESSE (Calcule vectoriel)
-                const now = performance.now();
+                // 2. Calcul de la vitesse (mouvement du nez)
                 if (lastHeadPos) {
-                    const dt = (now - lastTime); // ms
-                    
-                    if (dt > 16) { // ~60fps min
+                    const dt = now - lastTime;
+
+                    if (dt > 0 && dt <= MAX_FRAME_DELAY_MS * 2) { // Limite pour éviter les pics
                         const dx = nose[0] - lastHeadPos.x;
                         const dy = nose[1] - lastHeadPos.y;
-                        const distPx = Math.sqrt(dx*dx + dy*dy);
-                        
-                        // Vitesse brute en px/ms
-                        let rawSpeed = distPx / dt; 
+                        const distPx = Math.sqrt(dx * dx + dy * dy);
 
-                        // Lissage de la vitesse (Réaction rapide mais sans pics)
-                        // Alpha 0.3 = 30% nouvelle valeur, 70% ancienne
-                        smoothedSpeed = (smoothedSpeed * 0.7) + (rawSpeed * 0.3);
-                        
-                        // Conversion arbitraire pour l'affichage (facteur * 1000 pour avoir des "unités")
-                        speed = smoothedSpeed * 1000; 
+                        // Vitesse brute avec protection contre les valeurs aberrantes
+                        let rawSpeed = distPx / dt;
+                        rawSpeed = Math.min(rawSpeed, 10); // Limite arbitraire haute
+
+                        // Lissage de la vitesse
+                        smoothedSpeed = (smoothedSpeed * SPEED_SMOOTHING) + (rawSpeed * (1 - SPEED_SMOOTHING));
+                        speed = smoothedSpeed * 1000;
                     }
                 }
+
+                // Mise à jour des positions
                 lastHeadPos = { x: nose[0], y: nose[1] };
                 lastTime = now;
 
-                handleState(speed, now);
-                updateStats();
-
-            } else {
-                // Decay speed si pas de visage
-                smoothedSpeed = smoothedSpeed * 0.9;
-                speed = smoothedSpeed * 1000;
-                updateStats();
+            } catch (err) {
+                console.error("[AV Pro] Erreur traitement prédiction:", err);
             }
-            requestAnimationFrame(loop);
         }
 
-        // --- MACHINE D'ÉTAT ---
+        // =============================================
+        // MACHINE D'ÉTAT
+        // =============================================
+
         function handleState(currentSpeed, now) {
-            // Seuil légèrement augmenté pour éviter les faux positifs grâce au lissage
-            const minSpeedTrigger = 150; 
-            const flashDuration = 60;    
-            const cooldownDuration = 1000; 
-
-            if (state === 'IDLE') {
-                if (currentSpeed > minSpeedTrigger && (now - lastFlashTime > cooldownDuration)) {
-                    state = 'FLASH';
-                    lastFlashTime = now;
-
-                    const randomLetter = letters[Math.floor(Math.random() * letters.length)];
-                    letterEl.innerText = randomLetter;
-                    letterEl.style.fontSize = calculateSize(distance, acuity) + 'px';
-                    letterEl.style.opacity = '1';
-
-                    setTimeout(() => {
-                        letterEl.style.opacity = '0';
-                        state = 'IDLE';
-                    }, flashDuration);
+            try {
+                // État IDLE - attend un mouvement suffisant
+                if (state === 'IDLE') {
+                    if (currentSpeed > MIN_SPEED_TRIGGER && (now - lastFlashTime > COOLDOWN_DURATION_MS)) {
+                        triggerLetterDisplay(now);
+                    }
                 }
+            } catch (err) {
+                console.error("[AV Pro] Erreur gestion état:", err);
             }
         }
 
-        // --- CALCUL TAILLE OPTIQUE ---
+        function triggerLetterDisplay(now) {
+            try {
+                state = 'FLASH';
+                lastFlashTime = now;
+
+                // Sélection aléatoire d'une lettre
+                const randomLetter = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+                letterEl.innerText = randomLetter;
+
+                // Calcul de la taille avec limites
+                const sizePx = calculateSize(distance, acuity);
+                letterEl.style.fontSize = `${Math.min(LETTER_SIZE_RANGE.max, Math.max(LETTER_SIZE_RANGE.min, sizePx))}px`;
+
+                // Affichage avec effet
+                letterEl.style.opacity = '1';
+
+                // Masquage après la durée spécifiée
+                setTimeout(() => {
+                    letterEl.style.opacity = '0';
+                    state = 'IDLE';
+                }, FLASH_DURATION_MS);
+
+            } catch (err) {
+                console.error("[AV Pro] Erreur affichage lettre:", err);
+            }
+        }
+
+        // =============================================
+        // FONCTIONS DE CALCUL
+        // =============================================
+
         function calculateSize(distCm, acuityDecimal) {
-            let heightCm = (distCm * 0.0145) / acuityDecimal;
-            let heightPx = (heightCm / 2.54) * screenDPI;
-            return Math.max(20, Math.round(heightPx));
+            try {
+                // Conversion cm en pouces
+                const heightCm = (distCm * 0.0145) / acuityDecimal;
+
+                // Conversion en pixels basée sur le DPI
+                const heightPx = (heightCm / 2.54) * screenDPI;
+
+                return Math.min(LETTER_SIZE_RANGE.max, Math.max(LETTER_SIZE_RANGE.min, Math.round(heightPx)));
+            } catch (err) {
+                console.error("[AV Pro] Erreur calcul taille:", err);
+                return 100; // Valeur par défaut en cas d'erreur
+            }
+        }
+
+        function calculateDistance(point1, point2) {
+            try {
+                return Math.sqrt(
+                    Math.pow(point2[0] - point1[0], 2) +
+                    Math.pow(point2[1] - point1[1], 2)
+                );
+            } catch (err) {
+                console.error("[AV Pro] Erreur calcul distance:", err);
+                return 0;
+            }
+        }
+
+        // =============================================
+        // MISE À JOUR DE L'INTERFACE
+        // =============================================
+
+        function updateInitStatus(text, status) {
+            const element = document.getElementById('initStatus');
+            const container = document.getElementById('statusInit');
+
+            if (!element || !container) return;
+
+            element.textContent = text;
+
+            // Mise à jour du style en fonction du statut
+            container.className = `stat status-${status}`;
         }
 
         function updateParams() {
-            acuity = parseFloat(document.getElementById('acuity').value);
-            document.getElementById('valAcuity').innerText = acuity.toFixed(1);
+            try {
+                acuity = parseFloat(document.getElementById('acuity').value);
+                document.getElementById('valAcuity').textContent = acuity.toFixed(1);
+
+                // Sauvegarder en localStorage
+                localStorage.setItem('avd_acuity_v1', acuity);
+
+                console.log(`[AV Pro] Paramètres mis à jour: acuité=${acuity}`);
+            } catch (err) {
+                console.error("[AV Pro] Erreur mise à jour paramètres:", err);
+            }
+        }
+
+        function updateCalib() {
+            try {
+                calibrationFactor = parseFloat(document.getElementById('calibSlider').value);
+                document.getElementById('calibBar').style.transform = `scaleX(${calibrationFactor})`;
+                console.log(`[AV Pro] Calibration ajustée: ${calibrationFactor}`);
+            } catch (err) {
+                console.error("[AV Pro] Erreur mise à jour calibration:", err);
+            }
+        }
+
+        function saveCalib() {
+            try {
+                localStorage.setItem('avd_blazeface_calib_v3', calibrationFactor);
+                screenDPI = BASE_DPI * calibrationFactor;
+
+                document.getElementById('calibPanel').classList.add('hidden');
+                showMessage("Calibration sauvegardée avec succès", "success");
+
+                console.log(`[AV Pro] Calibration sauvegardée: ${calibrationFactor}`);
+            } catch (err) {
+                showError(`Échec sauvegarde calibration: ${err.message}`);
+                console.error("[AV Pro] Erreur sauvegarde calibration:", err);
+            }
+        }
+
+        function toggleCalib() {
+            const panel = document.getElementById('calibPanel');
+            panel.classList.toggle('hidden');
         }
 
         function updateStats() {
-            document.getElementById('statusSpeed').innerText = `Vitesse: ${Math.round(speed)}`;
-            document.getElementById('statusDist').innerText = `Dist: ~${Math.round(distance)} cm`;
-            
-            // Taille de la lettre courante (même si invisible)
-            let currentSize = calculateSize(distance, acuity);
-            document.getElementById('statusSize').innerText = `Taille: ${currentSize} px`;
+            try {
+                // Vitesse
+                document.getElementById('speedValue').textContent = Math.round(speed);
 
-            // Mise à jour de la jauge
-            // On mappe 0-300 de vitesse sur 0-100% de la barre
-            let pct = Math.min(100, (speed / 250) * 100);
-            document.getElementById('speedBar').style.width = `${pct}%`;
-            
-            // Couleur de la jauge change si seuil atteint
-            const bar = document.getElementById('speedBar');
-            if(speed > 150) bar.style.background = '#f00'; // Rouge si prêt à déclencher
-            else bar.style.background = 'linear-gradient(90deg, #0f0, #ff0, #f00)';
+                // Distance
+                document.getElementById('distValue').textContent = `~${Math.round(distance)} cm`;
+
+                // Taille de la lettre
+                const sizePx = calculateSize(distance, acuity);
+                document.getElementById('sizeValue').textContent = `${sizePx} px`;
+
+                // FPS
+                document.getElementById('fpsValue').textContent = `${fps} FPS`;
+
+                // Mise à jour de la jauge
+                updateSpeedGauge();
+
+            } catch (err) {
+                console.error("[AV Pro] Erreur mise à jour stats:", err);
+            }
         }
+
+        function updateSpeedGauge() {
+            try {
+                const bar = document.getElementById('speedBar');
+                if (!bar) return;
+
+                // Mapping de la vitesse sur la jauge (0-300)
+                let pct = Math.min(100, (speed / 300) * 100);
+                bar.style.width = `${pct}%`;
+
+                // Changement de couleur en fonction du seuil
+                if (speed > MIN_SPEED_TRIGGER) {
+                    bar.classList.add('warning');
+                } else {
+                    bar.classList.remove('warning');
+                }
+
+            } catch (err) {
+                console.error("[AV Pro] Erreur mise à jour jauge:", err);
+            }
+        }
+
+        // =============================================
+        // GESTION DES ERREURS ET MESSAGES
+        // =============================================
+
+        function showError(message) {
+            const errorElement = document.getElementById('errorMsg');
+            if (errorElement) {
+                errorElement.textContent = message;
+                console.error("[AV Pro] Erreur:", message);
+            }
+        }
+
+        function showMessage(message, type = "info") {
+            console.log(`[AV Pro] ${type.toUpperCase()}:`, message);
+            // Ici vous pourriez ajouter une notification toast
+        }
+
+        // =============================================
+        // GESTION DE L'APPLICATION
+        // =============================================
+
+        async function startApp() {
+            try {
+                // Désactiver le bouton pendant le démarrage
+                btnText.textContent = "DÉMARRAGE EN COURS...";
+                spinner.classList.remove('hidden');
+                document.getElementById('startBtn').disabled = true;
+
+                // Initialisation
+                initElements();
+                loadSettings();
+
+                // Démarrage de la caméra
+                const cameraReady = await startCamera();
+                if (!cameraReady) {
+                    throw new Error("Caméra non disponible");
+                }
+
+                // Chargement du modèle
+                const modelReady = await loadModel();
+                if (!modelReady) {
+                    throw new Error("Modèle IA non chargé");
+                }
+
+                // Masquer l'overlay et afficher l'UI
+                overlay.classList.add('hidden');
+                ui.classList.remove('hidden');
+
+                // Démarrage de la boucle
+                isAppRunning = true;
+                updateInitStatus("Test en cours...", "warning");
+                loop();
+
+                console.log("[AV Pro] Application démarrée avec succès");
+
+            } catch (err) {
+                showError(`Échec du démarrage: ${err.message}`);
+                console.error("[AV Pro] Erreur globale:", err);
+
+                // Réactiver le bouton
+                btnText.textContent = "DÉMARRER LE TEST";
+                spinner.classList.add('hidden');
+                document.getElementById('startBtn').disabled = false;
+
+            } finally {
+                // S'assurer que le bouton est réactivé même en cas d'erreur
+                setTimeout(() => {
+                    document.getElementById('startBtn').disabled = false;
+                }, 2000);
+            }
+        }
+
+        function stopApp() {
+            isAppRunning = false;
+            stopCamera();
+            if (model) {
+                // Pas de méthode explicite pour libérer le modèle dans blazeface
+                model = null;
+            }
+            console.log("[AV Pro] Application arrêtée");
+        }
+
+        // =============================================
+        // GESTION DES ÉVÉNEMENTS
+        // =============================================
+
+        // Gestion du changement de fenêtre/onglet
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && isAppRunning) {
+                console.log("[AV Pro] Application mise en pause (onglet masqué)");
+                // Vous pourriez arrêter la détection ici pour économiser des ressources
+            }
+        });
+
+        // Gestion de la taille de la fenêtre
+        window.addEventListener('resize', () => {
+            // Recalculer le DPI si nécessaire
+            const dpr = window.devicePixelRatio || 1;
+            screenDPI = BASE_DPI * calibrationFactor;
+        });
+
+        // Gestion des erreurs globales
+        window.addEventListener('error', (event) => {
+            console.error("[AV Pro] Erreur non capturée:", event.error);
+            showError(`Erreur critique: ${event.error.message}`);
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error("[AV Pro] Rejection non gérée:", event.reason);
+            showError(`Erreur système: ${event.reason}`);
+        });
+
+        // =============================================
+        // INITIALISATION AU CHARGEMENT
+        // =============================================
+
+        console.log(`[AV Pro] Version ${APP_VERSION} - Initialisation...`);
+        initElements();
+        loadSettings();
+
+        // Vérification de la compatibilité
+        if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) {
+            console.warn("[AV Pro] API requestVideoFrameCallback non disponible");
+        }
+
+        // Affichage de la version dans la console
+        console.log(`%cAV Pro v${APP_VERSION}`, 'color: #4ecdc4; font-weight: bold; font-size: 16px;');
     </script>
 </body>
 </html>
