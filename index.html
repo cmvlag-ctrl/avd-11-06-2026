@@ -38,7 +38,7 @@
             z-index: 10;
             pointer-events: none;
             text-shadow: 0 0 15px rgba(255, 255, 255, 0.7), 0 0 5px black;
-            transition: opacity 0.05s linear;
+            transition: opacity 0.05s linear, font-size 0.1s linear;
         }
 
         /* Bandeau supérieur */
@@ -382,6 +382,7 @@
             screenDPI = baseDPI * calibrationFactor;
 
             document.getElementById('calibFeedback').innerText = "✓ OK";
+            updateLetterSize();
             updateStats();
             setTimeout(() => document.getElementById('calibFeedback').innerText = '', 3000);
         }
@@ -407,7 +408,6 @@
             document.getElementById('startAcuityBtn').textContent = "Lancer Test";
 
             if (panel.style.display === 'none') {
-                // Réinitialiser l'état
                 isCalibratingAcuity = false;
                 letterEl.style.opacity = '0';
             }
@@ -419,39 +419,28 @@
             isCalibratingAcuity = true;
             document.getElementById('startAcuityBtn').textContent = "Nouveau Test";
 
-            // Calculer la taille de la lettre pour le test
             const sizePx = calculateSize(50, parseFloat(document.getElementById('acuityCalibSlider').value));
             letterEl.style.fontSize = sizePx + 'px';
             currentCalibLetterSize = sizePx;
             currentCalibLetterCm = (sizePx / screenDPI) * 2.54;
 
-            // Afficher la lettre
             const randomLetter = letters[Math.floor(Math.random() * letters.length)];
             letterEl.innerText = randomLetter;
             letterEl.style.opacity = '1';
 
-            // Masquer après 60ms
             setTimeout(() => {
                 letterEl.style.opacity = '0';
                 isCalibratingAcuity = false;
 
-                // Calculer l'acuité basée sur la taille affichée
-                // On veut que la lettre soit visible à 50cm, donc on ajuste l'acuité
-                // Acuité = (taille réelle souhaitée en mm) / (taille réelle calculée en mm)
-                // Pour une lettre de 1.5mm à 50cm avec acuity=1.0:
-                // acuity = 1.5 / (currentCalibLetterCm * 10)
-                const desiredSizeMm = 1.5; // Taille souhaitée pour une acuité normale
-                const actualSizeMm = currentCalibLetterCm * 10; // Conversion cm → mm
+                const desiredSizeMm = 1.5;
+                const actualSizeMm = currentCalibLetterCm * 10;
                 acuityCalibrated = desiredSizeMm / actualSizeMm;
 
-                // Afficher le résultat
                 document.getElementById('acuityCalibResult').innerText =
                     `Acuité calibrée: ${acuityCalibrated.toFixed(2)}`;
 
-                // Mettre à jour l'affichage
                 document.getElementById('acuitySizeDisplay').innerText = sizePx + 'px';
                 document.getElementById('acuityCmDisplay').innerText = (currentCalibLetterCm * 10).toFixed(1);
-
             }, 60);
         }
 
@@ -464,11 +453,9 @@
 
             localStorage.setItem('avd_acuity_calib_v1', acuityCalibrated);
             document.getElementById('acuityCalibPanel').style.display = 'none';
-
             document.getElementById('acuityFeedback').innerText = "✓ Acuité sauvegardée";
             setTimeout(() => document.getElementById('acuityFeedback').innerText = '', 3000);
-
-            // Mettre à jour l'affichage
+            updateLetterSize();
             updateStats();
         }
 
@@ -481,24 +468,31 @@
         }
 
         // =============================================
-        // FONCTIONS DE PARAMÈTRES
+        // FONCTIONS DE PARAMÈTRES - MODIFIÉE
         // =============================================
         function updateParams() {
             acuity = parseFloat(document.getElementById('acuity').value);
             document.getElementById('valAcuity').innerText = acuity.toFixed(1);
+            updateLetterSize();
             updateStats();
         }
 
         // =============================================
-        // FONCTIONS DE STATISTIQUES
+        // NOUVELLE FONCTION POUR METTRE À JOUR LA TAILLE DE LA LETTRE
+        // =============================================
+        function updateLetterSize() {
+            const currentAcuityValue = acuityCalibrated !== null ? acuityCalibrated : acuity;
+            letterEl.style.fontSize = calculateSize(distance, currentAcuityValue) + 'px';
+        }
+
+        // =============================================
+        // FONCTIONS DE STATISTIQUES - MODIFIÉE
         // =============================================
         function updateStats() {
             document.getElementById('statusSpeed').innerText = `Vit: ${Math.round(speed)}`;
             document.getElementById('statusDist').innerText = `Dist: ~${Math.round(distance)} cm`;
 
-            // Utiliser l'acuité calibrée si disponible, sinon utiliser l'acuité standard
             const currentAcuityValue = acuityCalibrated !== null ? acuityCalibrated : acuity;
-
             let currentSize = calculateSize(distance, currentAcuityValue);
             document.getElementById('statusSize').innerText = `Lettre: ${currentSize}px`;
             document.getElementById('currentAcuity').innerText = currentAcuityValue.toFixed(2);
@@ -511,15 +505,13 @@
         // CALCUL DE LA TAILLE DES LETTRES
         // =============================================
         function calculateSize(distCm, acuityDecimal) {
-            // Taille de référence: 1.5mm à 40cm avec acuity=1.0
-            // Donc: heightCm = (distCm * 0.00375) / acuityDecimal
             let heightCm = (distCm * 0.00375) / acuityDecimal;
             let heightPx = (heightCm / 2.54) * screenDPI;
             return Math.max(20, Math.round(heightPx));
         }
 
         // =============================================
-        // MACHINE D'ÉTAT
+        // MACHINE D'ÉTAT - MODIFIÉE
         // =============================================
         function handleState(currentSpeed, now) {
             const minSpeedTrigger = 150;
@@ -533,7 +525,6 @@
                     const randomLetter = letters[Math.floor(Math.random() * letters.length)];
                     letterEl.innerText = randomLetter;
 
-                    // Utiliser l'acuité calibrée si disponible
                     const currentAcuityValue = acuityCalibrated !== null ? acuityCalibrated : acuity;
                     letterEl.style.fontSize = calculateSize(distance, currentAcuityValue) + 'px';
 
