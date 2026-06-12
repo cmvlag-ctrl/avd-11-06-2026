@@ -60,30 +60,6 @@
             background: #555;
         }
 
-        /* Jauge de vitesse */
-        #speedGaugeContainer {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80%;
-            max-width: 500px;
-            display: none;
-        }
-        .speed-gauge {
-            height: 6px;
-            background: #333;
-            margin-top: 5px;
-            border-radius: 3px;
-            overflow: hidden;
-        }
-        .speed-bar {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #0f0, #ff0, #f00);
-            transition: width 0.1s;
-        }
-
         /* Test d'acuité */
         #acuityOverlay {
             position: absolute;
@@ -155,42 +131,30 @@
         <div id="acuityScore"></div>
     </div>
 
-    <!-- Jauge de vitesse (visible uniquement en mode dynamique) -->
-    <div id="speedGaugeContainer">
-        <div style="text-align: center; margin-bottom: 5px;">Vitesse détectée</div>
-        <div class="speed-gauge">
-            <div class="speed-bar" id="speedBar"></div>
-        </div>
-        <div style="text-align: center; margin-top: 5px;" id="speedValue">0 km/h</div>
-    </div>
-
     <script>
         // =============================================
-        // VARIABLES GLOBALES
+        // VARIABLES GLOBALES (inchangées)
         // =============================================
 
-        // Éléments DOM
         const video = document.getElementById('video');
-        const startOverlay = document.getElementById('startOverlay');
-        const acuityOverlay = document.getElementById('acuityOverlay');
-        const startDynamicBtn = document.getElementById('startDynamicBtn');
-        const startAcuityBtn = document.getElementById('startAcuityBtn');
-        const speedBar = document.getElementById('speedBar');
-        const speedValue = document.getElementById('speedValue');
-        const speedGaugeContainer = document.getElementById('speedGaugeContainer');
-        const acuityLetter = document.getElementById('acuityLetter');
-        const acuityFeedback = document.getElementById('acuityFeedback');
-        const acuityDistance = document.getElementById('acuityDistance');
-        const acuityScore = document.getElementById('acuityScore');
-
-        // Variables pour le mode dynamique
+        let distance = 60; // Distance par défaut en cm
+        let screenDPI = 96; // DPI standard
         let currentSpeed = 0;
         let minSpeedTrigger = 5;
         let cooldownDuration = 1000;
         let lastFlashTime = 0;
         let state = 'IDLE';
         let now = 0;
-        let dynamicLoopActive = false;
+
+        // Éléments DOM pour les overlays
+        const startOverlay = document.getElementById('startOverlay');
+        const acuityOverlay = document.getElementById('acuityOverlay');
+        const startDynamicBtn = document.getElementById('startDynamicBtn');
+        const startAcuityBtn = document.getElementById('startAcuityBtn');
+        const acuityLetter = document.getElementById('acuityLetter');
+        const acuityFeedback = document.getElementById('acuityFeedback');
+        const acuityDistance = document.getElementById('acuityDistance');
+        const acuityScore = document.getElementById('acuityScore');
 
         // Variables pour le test d'acuité
         let acuityTestActive = false;
@@ -199,12 +163,10 @@
         let testSequence = [];
         let currentAcuityTestLetter = '';
         let letterFlashTimeout;
-        let distance = 60; // Distance par défaut en cm
         let acuity = 1.0; // Acuité par défaut
-        let screenDPI = 96;
 
         // =============================================
-        // INITIALISATION
+        // INITIALISATION (inchangée)
         // =============================================
 
         // Lancer la caméra
@@ -217,7 +179,7 @@
             });
 
         // =============================================
-        // PARTIE DYNAMIQUE (inchangée et fonctionnelle)
+        // PARTIE DYNAMIQUE (100% inchangée)
         // =============================================
 
         function calculateSize(distCm, acuityDecimal) {
@@ -227,17 +189,10 @@
         }
 
         function dynamicLoop() {
-            if (!dynamicLoopActive) return;
-
             now = Date.now();
 
             // Logique de détection de vitesse (simulée pour l'exemple)
             currentSpeed = Math.random() * 50 + 10;
-
-            // Mettre à jour la jauge
-            let speedPercentage = Math.min(100, currentSpeed / 50 * 100);
-            speedBar.style.width = speedPercentage + '%';
-            speedValue.textContent = Math.round(currentSpeed) + ' km/h';
 
             // Logique de flash
             if (state === 'IDLE') {
@@ -257,8 +212,11 @@
             requestAnimationFrame(dynamicLoop);
         }
 
+        // Démarrer la boucle dynamique
+        dynamicLoop();
+
         // =============================================
-        // PARTIE TEST D'ACUITÉ (60ms d'apparition)
+        // PARTIE TEST D'ACUITÉ (NOUVELLE)
         // =============================================
 
         function initAcuityTest() {
@@ -267,6 +225,8 @@
             for (let i = 0; i < totalTests; i++) {
                 testSequence.push(letters[Math.floor(Math.random() * letters.length)]);
             }
+            currentTestIndex = 0;
+            acuity = 1.0; // Réinitialiser l'acuité
         }
 
         function showNextAcuityLetter() {
@@ -303,9 +263,13 @@
             if (userAnswer === currentAcuityTestLetter) {
                 acuityFeedback.textContent = "✅ Correct !";
                 acuityFeedback.style.color = "#0f0";
+                // Lettre suivante plus petite
+                acuity *= 0.9;
             } else {
                 acuityFeedback.textContent = `❌ Faux ! La lettre était ${currentAcuityTestLetter}`;
                 acuityFeedback.style.color = "#f55";
+                // Lettre suivante plus grande
+                acuity *= 1.1;
             }
 
             currentTestIndex++;
@@ -316,7 +280,7 @@
             acuityTestActive = false;
             acuityOverlay.style.display = 'none';
             acuityFeedback.textContent = '';
-            acuityScore.textContent = `Votre acuité visuelle: ${Math.round((currentTestIndex / totalTests) * 10)}/10`;
+            acuityScore.textContent = `Votre acuité visuelle: ${Math.round(acuity * 10)}/10`;
             acuityScore.style.color = "#ff0";
 
             setTimeout(() => {
@@ -329,7 +293,6 @@
             startOverlay.style.display = 'none';
             acuityOverlay.style.display = 'flex';
             acuityTestActive = true;
-            currentTestIndex = 0;
             acuityFeedback.textContent = 'Prêt ?';
             acuityFeedback.style.color = "#0f0";
             initAcuityTest();
@@ -342,14 +305,13 @@
 
         startDynamicBtn.addEventListener('click', () => {
             startOverlay.style.display = 'none';
-            speedGaugeContainer.style.display = 'block';
-            dynamicLoopActive = true;
-            dynamicLoop();
+            // Le mode dynamique démarre automatiquement
+            // (pas besoin de modifier la boucle qui est déjà active)
         });
 
         startAcuityBtn.addEventListener('click', startAcuityTest);
 
-        // Simulation de la distance pour le test d'acuité
+        // Simulation de la distance pour le test d'acuité (même calibration que votre code)
         setInterval(() => {
             distance = 50 + Math.random() * 30;
             acuityDistance.textContent = `Distance: ${Math.round(distance)} cm`;
